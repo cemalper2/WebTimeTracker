@@ -6,6 +6,7 @@ import { Timer } from './components/timer.js';
 import { TaskEntry } from './components/taskEntry.js';
 import { TaskList } from './components/taskList.js';
 import { storage } from './services/storage.js';
+import { syncService } from './services/sync.js';
 import { formatTime, generateId } from './utils/formatters.js';
 
 class TimeTrackerApp {
@@ -13,8 +14,9 @@ class TimeTrackerApp {
         this.timer = null;
         this.taskEntry = null;
         this.taskList = null;
-        this.resumeTaskId = null;  // Track if we're resuming a task
-        this.editingTaskId = null; // Track if we're editing a saved task's time
+        this.taskList = null;
+        this.activeTaskId = null;  // Current active task (new or resumed)
+        this.editingTaskId = null; // for Time Edit Modal only
         this.sessionDate = null;   // Current session date (YYYY-MM-DD)
         this.timerLogs = [];       // Logs of timer start/stop events
         this.init();
@@ -41,7 +43,9 @@ class TimeTrackerApp {
             startBtn: document.getElementById('startBtn'),
             stopBtn: document.getElementById('stopBtn'),
             resetBtn: document.getElementById('resetBtn'),
-            saveBtn: document.getElementById('saveBtn'),
+            stopBtn: document.getElementById('stopBtn'),
+            resetBtn: document.getElementById('resetBtn'),
+            newTaskBtn: document.getElementById('newTaskBtn'),
             taskName: document.getElementById('taskName'),
             suggestions: document.getElementById('suggestions'),
             taskListContainer: document.getElementById('taskList'),
@@ -89,7 +93,8 @@ class TimeTrackerApp {
             container: this.els.taskListContainer,
             onDelete: (id) => this.deleteTask(id),
             onResume: (id) => this.resumeTask(id),
-            onEdit: (id) => this.editTaskDuration(id)
+            onEdit: (id) => this.editTaskDuration(id),
+            onSync: (id, direction) => this.syncTask(id, direction)
         });
     }
     
@@ -97,7 +102,11 @@ class TimeTrackerApp {
         this.els.startBtn.addEventListener('click', () => this.timer.start());
         this.els.stopBtn.addEventListener('click', () => this.timer.stop());
         this.els.resetBtn.addEventListener('click', () => this.timer.reset());
-        this.els.saveBtn.addEventListener('click', () => this.saveTask());
+        this.els.startBtn.addEventListener('click', () => this.timer.start());
+        this.els.stopBtn.addEventListener('click', () => this.timer.stop());
+        this.els.resetBtn.addEventListener('click', () => this.timer.reset());
+        this.els.newTaskBtn.addEventListener('click', () => this.startNewTask());
+        this.els.taskName.addEventListener('input', (e) => this.handleTaskNameChange(e.target.value));
         this.els.timerDisplay.addEventListener('click', () => this.openTimeEditModal());
         this.els.cancelEdit.addEventListener('click', () => this.closeTimeEditModal());
         this.els.confirmEdit.addEventListener('click', () => this.applyTimeEdit());
@@ -135,6 +144,29 @@ class TimeTrackerApp {
                 this.showToast(`Switched to ${selectedDate}`, 'success');
             }
         });
+        
+        // Spinner Buttons Delegation
+        this.els.timeEditModal.addEventListener('click', (e) => {
+            const btn = e.target.closest('.spinner-btn');
+            if (btn) {
+                const targetId = btn.dataset.target;
+                const input = document.getElementById(targetId);
+                let value = parseInt(input.value, 10) || 0;
+                const isUp = btn.classList.contains('up');
+                const MAX_HOURS = 24;
+                const max = targetId === 'editHours' ? MAX_HOURS : 59;
+                
+                if (isUp) {
+                    value = value >= max ? 0 : value + 1;
+                } else {
+                    value = value <= 0 ? max : value - 1;
+                }
+                
+                input.value = String(value); 
+            } else if (e.target === this.els.timeEditModal) {
+                 this.closeTimeEditModal();
+            }
+        });
     }
     
     initTheme() {
@@ -162,7 +194,7 @@ class TimeTrackerApp {
         this.els.seconds.textContent = time.seconds;
     }
     
-    handleTimerStateChange(state) {
+    async handleTimerStateChange(state) {
         // Log timer events with timestamps
         this.timerLogs.push({
             event: state === 'running' ? 'start' : 'stop',
@@ -174,10 +206,25 @@ class TimeTrackerApp {
             this.els.startBtn.classList.add('hidden');
             this.els.stopBtn.classList.remove('hidden');
             this.els.timerDisplay.classList.add('running');
+            
+            // Auto-Create Task on Start if not exists
+            if (!this.activeTaskId) {
+                await this.createAutoSaveTask();
+            }
         } else {
             this.els.startBtn.classList.remove('hidden');
             this.els.stopBtn.classList.add('hidden');
             this.els.timerDisplay.classList.remove('running');
+            
+            // Auto-Update Task on Stop
+            if (this.activeTaskId) {
+                 const mergedLogs = await this.mergeTimerLogs(this.activeTaskId);
+                 await this.updateAutoSaveTask({ 
+                     duration: this.timer.getTime(),
+                     timerLogs: mergedLogs
+                 });
+                 this.timerLogs = []; // Clear current logs after sync
+            }
         }
     }
     
@@ -188,21 +235,25 @@ class TimeTrackerApp {
         this.els.editMinutes.value = parseInt(time.minutes, 10);
         this.els.editSeconds.value = parseInt(time.seconds, 10);
         this.els.timeEditModal.classList.remove('hidden');
-        this.initSpinnerButtons();
+        this.els.editSeconds.value = parseInt(time.seconds, 10);
+        this.els.timeEditModal.classList.remove('hidden');
         this.els.editHours.focus();
     }
     
     initSpinnerButtons() {
-        const MAX_HOURS = 24;  // Same limit as validation
+        const MAX_HOURS = 24;
         const modal = this.els.timeEditModal;
-        modal.querySelectorAll('.spinner-btn').forEach(btn => {
-            // Remove old listeners by cloning
+        const buttons = modal.querySelectorAll('.spinner-btn');
+        
+        buttons.forEach(btn => {
             const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
+            btn.replaceWith(newBtn);
             
             newBtn.addEventListener('click', () => {
                 const targetId = newBtn.dataset.target;
                 const input = document.getElementById(targetId);
+                console.log(`Spinner Click: ${targetId} Current: ${input.value}`);
+                
                 let value = parseInt(input.value, 10) || 0;
                 const isUp = newBtn.classList.contains('up');
                 const max = targetId === 'editHours' ? MAX_HOURS : 59;
@@ -213,7 +264,7 @@ class TimeTrackerApp {
                     value = value <= 0 ? max : value - 1;
                 }
                 
-                input.value = value;
+                input.value = String(value);
             });
         });
     }
@@ -270,53 +321,84 @@ class TimeTrackerApp {
         this.closeTimeEditModal();
     }
     
-    async saveTask() {
-        const name = this.taskEntry.getValue();
-        const duration = this.timer.getTime();
+    async createAutoSaveTask() {
+        if (this.activeTaskId) return;
         
-        if (!name) { this.showToast('Please enter a task name', 'error'); this.taskEntry.focus(); return; }
-        if (duration === 0) { this.showToast('Timer is at 0:00:00', 'error'); return; }
+        const name = this.taskEntry.getValue() || 'Untitled Task';
+        const now = new Date();
+        const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const currentSession = localStorage.getItem('timetracker-session-date') || today;
         
+        const task = { 
+            id: generateId(), 
+            name, 
+            duration: this.timer.getTime(), 
+            createdAt: Date.now(),
+            sessionDate: currentSession, 
+            timerLogs: [...this.timerLogs],
+            updatedAt: Date.now()
+        };
+        
+        await storage.saveTask(task);
+        this.activeTaskId = task.id;
+        await this.loadTasks();
+    }
+
+    async updateAutoSaveTask(updates) {
+        if (!this.activeTaskId) return;
         try {
-            if (this.resumeTaskId) {
-                // Update existing task - merge logs
-                const existingTask = await storage.getTask(this.resumeTaskId);
-                const mergedLogs = [...(existingTask.timerLogs || []), ...this.timerLogs];
-                await storage.updateTask(this.resumeTaskId, { name, duration, timerLogs: mergedLogs });
-                this.resumeTaskId = null;
-                this.showToast('Task updated!', 'success');
-            } else {
-                // Create new task with logs and sessionDate
-                const now = new Date();
-                const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                const currentSession = localStorage.getItem('timetracker-session-date') || today;
-                const task = { 
-                    id: generateId(), 
-                    name, 
-                    duration, 
-                    createdAt: Date.now(),
-                    sessionDate: currentSession,  // Tag task with its session
-                    timerLogs: [...this.timerLogs]
-                };
-                await storage.saveTask(task);
-                this.showToast('Task saved!', 'success');
-            }
-            this.timerLogs = [];  // Clear logs after saving
-            this.timer.reset();
-            this.taskEntry.clear();
-            await this.loadTasks();
+            await storage.updateTask(this.activeTaskId, { ...updates, updatedAt: Date.now() });
+            await this.loadTasks(); 
         } catch (error) {
-            console.error('Save failed:', error);
-            this.showToast('Failed to save task', 'error');
+            console.error('Auto-save update failed:', error);
         }
+    }
+    
+    handleTaskNameChange(name) {
+        if (this.activeTaskId) {
+            if (this.nameUpdateTimeout) clearTimeout(this.nameUpdateTimeout);
+            this.nameUpdateTimeout = setTimeout(() => {
+                this.updateAutoSaveTask({ name: name || 'Untitled Task' });
+            }, 500);
+        }
+    }
+
+    async startNewTask() {
+        if (this.timer.getIsRunning()) {
+            this.timer.stop();
+            // Wait briefly for stop handler to fire?
+            // Since handler is async and not awaited by timer, we might race.
+            // But we can forcibly create a new cycle.
+        }
+        
+        // Ensure strictly synchronous cleanup of "current session" perception
+        this.timer.reset();
+        this.taskEntry.clear();
+        this.activeTaskId = null;
+        this.timerLogs = [];
+        
+        await this.loadTasks();
+        this.showToast('Started new task', 'success');
+    }
+    
+    async mergeTimerLogs(taskId) {
+         try {
+             const task = await storage.getTask(taskId);
+             return [...(task.timerLogs || []), ...this.timerLogs];
+         } catch (e) { return this.timerLogs; }
     }
     
     async resumeTask(id) {
         try {
+            // Auto-save current if active
+            if (this.activeTaskId && this.timer.getIsRunning()) {
+                this.timer.stop();
+            }
+
             const task = await storage.getTask(id);
             if (!task) { this.showToast('Task not found', 'error'); return; }
             
-            this.resumeTaskId = id;
+            this.activeTaskId = id;
             this.taskEntry.inputElement.value = task.name;
             this.timer.setTime(task.duration);
             this.showToast('Task resumed - continue timing!', 'success');
@@ -336,6 +418,7 @@ class TimeTrackerApp {
             this.els.editHours.value = parseInt(time.hours, 10);
             this.els.editMinutes.value = parseInt(time.minutes, 10);
             this.els.editSeconds.value = parseInt(time.seconds, 10);
+            this.els.editSeconds.value = parseInt(time.seconds, 10);
             this.els.timeEditModal.classList.remove('hidden');
             this.els.editHours.focus();
         } catch (error) {
@@ -352,6 +435,30 @@ class TimeTrackerApp {
         } catch (error) {
             console.error('Delete failed:', error);
             this.showToast('Failed to delete', 'error');
+        }
+    }
+
+    async syncTask(id, direction = 'up') {
+        try {
+            if (direction === 'down') {
+                const serverTask = await syncService.getServerTask(id);
+                if (!serverTask) {
+                    this.showToast('Task not found on server', 'error');
+                    return;
+                }
+                await storage.overwriteTask(serverTask);
+                this.showToast('Task fetched from server', 'success');
+            } else {
+                const task = await storage.getTask(id);
+                if (!task) return;
+                
+                await syncService.postTask(task);
+                this.showToast('Task uploaded to server', 'success');
+            }
+            await this.loadTasks();
+        } catch (error) {
+            console.error('Sync failed:', error);
+            this.showToast('Sync failed', 'error');
         }
     }
     
@@ -375,6 +482,19 @@ class TimeTrackerApp {
                 // Legacy tasks without sessionDate - show if viewing today
                 return currentSession === today;
             });
+            
+            // Sync Integration: Fetch server tasks and compare
+            try {
+                const serverTasks = await syncService.fetchServerTasks(currentSession);
+                
+                // Attach sync status to each task
+                tasks.forEach(task => {
+                    const serverTask = serverTasks.find(st => st.id === task.id);
+                    task.syncStatus = syncService.compareTasks(task, serverTask);
+                });
+            } catch (error) {
+                console.error('Sync fetch failed:', error);
+            }
             
             this.taskList.render(tasks);
             this.taskList.updateStats(tasks, this.els.totalTasks, this.els.totalTime);

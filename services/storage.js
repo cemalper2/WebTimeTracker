@@ -80,6 +80,26 @@ class StorageService {
                 reject(request.error);
             };
         });
+
+    }
+
+    /**
+     * Overwrite a task (create or replace)
+     * @param {Object} task 
+     * @returns {Promise<Object>}
+     */
+    async overwriteTask(task) {
+        await this.ensureReady();
+        
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.put(task);
+            
+            transaction.oncomplete = () => resolve(request.result);
+            transaction.onerror = () => reject(transaction.error);
+            request.onerror = () => reject(request.error); 
+        });
     }
     
     /**

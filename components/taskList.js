@@ -10,6 +10,7 @@ export class TaskList {
         this.onDelete = options.onDelete || (() => {});
         this.onEdit = options.onEdit || (() => {});
         this.onResume = options.onResume || (() => {});
+        this.onSync = options.onSync || (() => {});
     }
     
     render(tasks) {
@@ -25,10 +26,26 @@ export class TaskList {
             return;
         }
         
-        this.container.innerHTML = tasks.map(task => `
+        this.container.innerHTML = tasks.map(task => {
+            const syncIcon = {
+                'consistent': '✅',
+                'missing': '❌',
+                'inconsistent': '❓'
+            }[task.syncStatus];
+            
+            const syncTitle = {
+                'consistent': 'Synced with server',
+                'missing': 'Missing on server',
+                'inconsistent': 'Data mismatch with server'
+            }[task.syncStatus] || '';
+
+            return `
             <div class="task-item" data-id="${task.id}">
                 <div class="task-info">
-                    <span class="task-name">${this.escapeHtml(task.name)}</span>
+                    <div class="task-header-row" style="display: flex; align-items: center; gap: 8px;">
+                        <span class="task-name">${this.escapeHtml(task.name)}</span>
+                        ${syncIcon ? `<span class="sync-status" title="${syncTitle}" style="cursor: help; font-size: 0.8em;">${syncIcon}</span>` : ''}
+                    </div>
                     <div class="task-meta">
                         <span>${formatDate(task.createdAt)}</span>
                         <span>${formatTimeOfDay(task.createdAt)}</span>
@@ -37,12 +54,30 @@ export class TaskList {
                 <span class="task-time">${formatTime(task.duration).formatted}</span>
                 <div class="task-actions">
                     <button class="btn-icon-only resume" data-action="resume" title="Resume">▶️</button>
+                    ${task.syncStatus === 'inconsistent' 
+                        ? `<div class="sync-actions" style="display: flex; gap: 4px;">
+                             <button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Push to Server (Overwrite)">☁️⬆️</button>
+                             <button class="btn-icon-only sync" data-action="sync" data-direction="down" title="Pull from Server (Overwrite Local)">☁️⬇️</button>
+                           </div>`
+                        : (task.syncStatus !== 'consistent' 
+                            ? `<button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Upload to Server">☁️</button>`
+                            : '')
+                    }
                     <button class="btn-icon-only edit" data-action="edit" title="Edit Time">✏️</button>
                     <button class="btn-icon-only delete" data-action="delete" title="Delete">🗑️</button>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
         
+        this.container.querySelectorAll('[data-action="sync"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.closest('.task-item').dataset.id;
+                const direction = btn.dataset.direction || 'up';
+                this.onSync(id, direction);
+            });
+        });
+
         this.container.querySelectorAll('[data-action="delete"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
