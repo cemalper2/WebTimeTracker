@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "sessionDate": "2024-11-06",
+  "exportedAt": "2024-11-07T10:30:00.000Z",
+  "tasks": [
+    {
+      "id": "m3x7k9p2q",
+      "name": "Morning standup meeting",
+      "duration": 1800,
+      "createdAt": 1730883600000,
+      "sessionDate": "2024-11-06",
+      "timerLogs": [
+        { "event": "start", "timestamp": "2024-11-06T09:00:00.000Z", "elapsedSeconds": 0 },
+        { "event": "stop", "timestamp": "2024-11-06T09:30:00.000Z", "elapsedSeconds": 1800 }
+      ]
+    },
+    {
+      "id": "n4y8l0r3s",
+      "name": "Code review for PR #142",
+      "duration": 2700,
+      "createdAt": 1730887200000,
+      "sessionDate": "2024-11-06",
+      "timerLogs": [
+        { "event": "start", "timestamp": "2024-11-06T10:00:00.000Z", "elapsedSeconds": 0 },
+        { "event": "stop", "timestamp": "2024-11-06T10:45:00.000Z", "elapsedSeconds": 2700 }
+      ]
+    },
+    {
+      "id": "o5z9m1s4t",
+      "name": "Feature development - user authentication",
+      "duration": 7200,
+      "createdAt": 1730890800000,
+      "sessionDate": "2024-11-06",
+      "timerLogs": [
+        { "event": "start", "timestamp": "2024-11-06T11:00:00.000Z", "elapsedSeconds": 0 },
+        { "event": "stop", "timestamp": "2024-11-06T12:00:00.000Z", "elapsedSeconds": 3600 },
+        { "event": "start", "timestamp": "2024-11-06T13:00:00.000Z", "elapsedSeconds": 3600 },
+        { "event": "stop", "timestamp": "2024-11-06T14:00:00.000Z", "elapsedSeconds": 7200 }
+      ]
+    },
+    {
+      "id": "p6a0n2t5u",
+      "name": "Writing documentation",
+      "duration": 3600,
+      "createdAt": 1730901600000,
+      "sessionDate": "2024-11-06",
+      "timerLogs": [
+        { "event": "start", "timestamp": "2024-11-06T15:00:00.000Z", "elapsedSeconds": 0 },
+        { "event": "stop", "timestamp": "2024-11-06T16:00:00.000Z", "elapsedSeconds": 3600 }
+      ]
+    }
+  ]
+}

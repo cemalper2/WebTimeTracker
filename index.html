@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Track time spent on work tasks with an intuitive timer and task management interface">
+    <title>Time Tracker | Track Your Work</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-row">
+                <div class="logo">
+                    <span class="logo-icon">⏱️</span>
+                    <h1>TimeTracker</h1>
+                </div>
+
+                <button id="themeToggle" class="theme-toggle" title="Toggle dark/light mode">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+            <div class="session-info">
+                <span id="sessionDate" class="session-date" title="Click to pick a date">Today</span>
+                <input type="date" id="sessionDatePicker" style="visibility: hidden; position: absolute; width: 0; height: 0;">
+                <button id="newSessionBtn" class="btn btn-new-session hidden" title="Switch back to today's session">
+                    📅 Switch to Today
+                </button>
+            </div>
+            <p id="motivationalQuote" class="motivational-quote"></p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Timer Section -->
+            <section class="timer-section">
+                <div class="timer-card glass-card">
+                    <!-- Task Input with Autocomplete -->
+                    <div class="task-input-container">
+                        <label for="taskName" class="input-label">What are you working on?</label>
+                        <div class="autocomplete-wrapper">
+                            <input 
+                                type="text" 
+                                id="taskName" 
+                                class="task-input" 
+                                placeholder="Enter task name..."
+                                autocomplete="off"
+                            >
+                            <div id="suggestions" class="suggestions-dropdown hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Timer Display -->
+                    <div class="timer-display-container">
+                        <div id="timerDisplay" class="timer-display" title="Click to edit time">
+                            <span class="time-segment" id="hours">00</span>
+                            <span class="time-separator">:</span>
+                            <span class="time-segment" id="minutes">00</span>
+                            <span class="time-separator">:</span>
+                            <span class="time-segment" id="seconds">00</span>
+                        </div>
+                        <!-- Manual Time Edit Modal -->
+                        <div id="timeEditModal" class="time-edit-modal hidden">
+                            <div class="time-edit-content glass-card">
+                                <h3>Edit Time</h3>
+                                <div class="time-inputs">
+                                    <div class="time-spinner">
+                                        <button type="button" class="spinner-btn up" data-target="editHours">▲</button>
+                                        <input type="text" id="editHours" maxlength="2" placeholder="00">
+                                        <button type="button" class="spinner-btn down" data-target="editHours">▼</button>
+                                    </div>
+                                    <span class="time-colon">:</span>
+                                    <div class="time-spinner">
+                                        <button type="button" class="spinner-btn up" data-target="editMinutes">▲</button>
+                                        <input type="text" id="editMinutes" maxlength="2" placeholder="00">
+                                        <button type="button" class="spinner-btn down" data-target="editMinutes">▼</button>
+                                    </div>
+                                    <span class="time-colon">:</span>
+                                    <div class="time-spinner">
+                                        <button type="button" class="spinner-btn up" data-target="editSeconds">▲</button>
+                                        <input type="text" id="editSeconds" maxlength="2" placeholder="00">
+                                        <button type="button" class="spinner-btn down" data-target="editSeconds">▼</button>
+                                    </div>
+                                </div>
+                                <div class="edit-actions">
+                                    <button id="cancelEdit" class="btn btn-secondary">Cancel</button>
+                                    <button id="confirmEdit" class="btn btn-primary">Apply</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timer Controls -->
+                    <div class="timer-controls">
+                        <button id="startBtn" class="btn btn-start">
+                            <span class="btn-icon">▶</span>
+                            <span>Start</span>
+                        </button>
+                        <button id="stopBtn" class="btn btn-stop hidden">
+                            <span class="btn-icon">⏸</span>
+                            <span>Pause</span>
+                        </button>
+                        <button id="resetBtn" class="btn btn-reset">
+                            <span class="btn-icon">↺</span>
+                            <span>Reset</span>
+                        </button>
+                        <button id="saveBtn" class="btn btn-save">
+                            <span class="btn-icon">💾</span>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Task History Section -->
+            <section class="history-section">
+                <div class="history-header">
+                    <h2>📋 Task History</h2>
+                    <div class="history-actions">
+                        <button id="exportBtn" class="btn btn-icon-text" title="Export current session tasks">
+                            <span>📤</span> Export Session
+                        </button>
+                        <button id="exportAllBtn" class="btn btn-icon-text" title="Export ALL tasks (backup)">
+                            <span>📦</span> Export All
+                        </button>
+                        <button id="clearDataBtn" class="btn btn-icon-text" title="Delete ALL data (Reset App)" style="color: var(--color-danger); border-color: var(--color-danger);">
+                            <span>🗑️</span> Clear Data
+                        </button>
+                        <button id="importBtn" class="btn btn-icon-text" title="Import tasks from file">
+                            <span>📥</span> Import
+                        </button>
+                        <input type="file" id="importFile" accept=".json" style="display: none;">
+                    </div>
+                </div>
+                <div class="history-stats">
+                    <span id="totalTasks">0 tasks</span>
+                    <span class="stat-divider">•</span>
+                    <span id="totalTime">0h 0m</span>
+                </div>
+                <div id="taskList" class="task-list">
+                    <div class="empty-state">
+                        <span class="empty-icon">📭</span>
+                        <p>No tasks tracked yet</p>
+                        <p class="empty-hint">Start the timer and save your first task!</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Your time data is stored locally in your browser</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <span id="toastMessage"></span>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
