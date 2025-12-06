@@ -437,6 +437,39 @@ body {
     color: var(--color-text-primary);
 }
 
+.confirm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.2s ease;
+}
+
+.confirm-modal.hidden {
+    display: none;
+}
+
+.confirm-content {
+    padding: var(--space-xl);
+    min-width: 320px;
+    max-width: 90%;
+    text-align: center;
+    border: 1px solid var(--glass-border);
+    animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 .time-inputs {
     display: flex;
     align-items: center;

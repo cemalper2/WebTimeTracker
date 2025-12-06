@@ -94,6 +94,18 @@
                         </div>
                     </div>
 
+                        <!-- Custom Confirm Modal -->
+                        <div id="confirmModal" class="confirm-modal hidden">
+                            <div class="confirm-content glass-card">
+                                <h3 id="confirmTitle" style="margin-bottom: 12px; font-size: 1.2rem;">Are you sure?</h3>
+                                <p id="confirmMessage" style="color: var(--color-text-secondary); margin-bottom: 24px; white-space: pre-line;"></p>
+                                <div class="edit-actions">
+                                    <button id="confirmCancelBtn" class="btn btn-secondary">Cancel</button>
+                                    <button id="confirmOkBtn" class="btn btn-primary">Confirm</button>
+                                </div>
+                            </div>
+                        </div>
+
                     <!-- Timer Controls -->
                     <div class="timer-controls">
                         <button id="startBtn" class="btn btn-start">
@@ -121,14 +133,14 @@
                 <div class="history-header">
                     <h2>📋 Task History</h2>
                     <div class="history-actions">
-                        <button id="exportBtn" class="btn btn-icon-text" title="Export current session tasks">
-                            <span>📤</span> Export Session
+                        <button id="exportBtn" class="btn btn-icon-text" title="Export tasks for current day">
+                            <span>📤</span> Export Current Day
                         </button>
                         <button id="exportAllBtn" class="btn btn-icon-text" title="Export ALL tasks (backup)">
                             <span>📦</span> Export All
                         </button>
-                        <button id="clearDataBtn" class="btn btn-icon-text" title="Delete ALL data (Reset App)" style="color: var(--color-danger); border-color: var(--color-danger);">
-                            <span>🗑️</span> Clear Data
+                        <button id="clearDataBtn" class="btn btn-icon-text" title="Delete LOCAL data only (Server data persists)" style="color: var(--color-danger); border-color: var(--color-danger);">
+                            <span>🗑️</span> Clear Local Data
                         </button>
                         <button id="importBtn" class="btn btn-icon-text" title="Import tasks from file">
                             <span>📥</span> Import

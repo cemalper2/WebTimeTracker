@@ -69,7 +69,14 @@ class TimeTrackerApp {
             themeIcon: document.querySelector('#themeToggle .theme-icon'),
             motivationalQuote: document.getElementById('motivationalQuote'),
             sessionDatePicker: document.getElementById('sessionDatePicker'),
-            clearDataBtn: document.getElementById('clearDataBtn')
+            clearDataBtn: document.getElementById('clearDataBtn'),
+        
+            // Confirm Modal
+            confirmModal: document.getElementById('confirmModal'),
+            confirmTitle: document.getElementById('confirmTitle'),
+            confirmMessage: document.getElementById('confirmMessage'),
+            confirmOkBtn: document.getElementById('confirmOkBtn'),
+            confirmCancelBtn: document.getElementById('confirmCancelBtn')
         };
     }
     
@@ -102,9 +109,6 @@ class TimeTrackerApp {
         this.els.startBtn.addEventListener('click', () => this.timer.start());
         this.els.stopBtn.addEventListener('click', () => this.timer.stop());
         this.els.resetBtn.addEventListener('click', () => this.timer.reset());
-        this.els.startBtn.addEventListener('click', () => this.timer.start());
-        this.els.stopBtn.addEventListener('click', () => this.timer.stop());
-        this.els.resetBtn.addEventListener('click', () => this.timer.reset());
         this.els.newTaskBtn.addEventListener('click', () => this.startNewTask());
         this.els.taskName.addEventListener('input', (e) => this.handleTaskNameChange(e.target.value));
         this.els.timerDisplay.addEventListener('click', () => this.openTimeEditModal());
@@ -112,6 +116,30 @@ class TimeTrackerApp {
         this.els.confirmEdit.addEventListener('click', () => this.applyTimeEdit());
         this.els.timeEditModal.addEventListener('click', (e) => {
             if (e.target === this.els.timeEditModal) this.closeTimeEditModal();
+        });
+
+        // Global Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            const active = document.activeElement;
+            // Ignore if user is typing in an input
+            const isInput = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable;
+            
+            if (!isInput) {
+                if (e.code === 'Space') {
+                    e.preventDefault(); // Prevent page scroll
+                    if (this.timer.getIsRunning()) {
+                        this.timer.stop();
+                    } else {
+                        this.timer.start();
+                    }
+                } else if (e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    this.changeSessionDate(-1); // Previous day
+                } else if (e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    this.changeSessionDate(1); // Next day (blocked if future)
+                }
+            }
         });
         this.els.exportBtn.addEventListener('click', () => this.exportTasks());
         this.els.exportAllBtn.addEventListener('click', () => this.exportAllTasks());
@@ -301,20 +329,32 @@ class TimeTrackerApp {
         }
         
         const newDuration = h * 3600 + m * 60 + s;
+        console.log('[DEBUG] applyTimeEdit: newDuration=', newDuration, 'editingTaskId=', this.editingTaskId);
         
         if (this.editingTaskId) {
             // Editing a saved task's duration
+            console.log('[DEBUG] Editing saved task:', this.editingTaskId);
             try {
                 await storage.updateTask(this.editingTaskId, { duration: newDuration });
+                console.log('[DEBUG] storage.updateTask completed successfully');
+                
+                // REACTIVE UPDATE: If this is the active task, update the timer display
+                if (this.activeTaskId === this.editingTaskId) {
+                    this.timer.setTime(newDuration);
+                    console.log('[DEBUG] Updated active timer to:', newDuration);
+                }
+                
                 this.editingTaskId = null;
                 await this.loadTasks();
+                console.log('[DEBUG] loadTasks completed, showing toast');
                 this.showToast('Task duration updated', 'success');
             } catch (error) {
-                console.error('Update failed:', error);
+                console.error('[DEBUG] Update failed:', error);
                 this.showToast('Failed to update duration', 'error');
             }
         } else {
             // Editing current timer
+            console.log('[DEBUG] Editing current timer, setting to:', newDuration);
             this.timer.setTime(newDuration);
             this.showToast('Time updated', 'success');
         }
@@ -428,16 +468,58 @@ class TimeTrackerApp {
     }
     
     async deleteTask(id) {
+        // Fetch task to check status
+        const task = await storage.getTask(id);
+        if (!task) return;
+
+        // Check Sync Status
+        // We rely on the status calculated during loadTasks, but it's not stored in DB.
+        // So we must check `taskList` DOM or re-calculate.
+        // Better: re-fetch status or just check if it exists on server.
+        let isOnServer = false;
+        try {
+            const serverTask = await syncService.getServerTask(id);
+            if (serverTask) isOnServer = true;
+        } catch (e) {
+            console.warn('Delete check failed:', e);
+        }
+
+        if (isOnServer) {
+            const confirmed = await this.showConfirm(
+                `"${task.name}" is synced to the server.\n\n` +
+                `Click Confirm to delete it locally AND reset it on the server (Duration = 0).\n` +
+                `Click Cancel to abort.`,
+                'Sync Deletion'
+            );
+            
+            if (!confirmed) return;
+            
+            try {
+                // Post duration 0 to server to "soft delete" / reset
+                // Must also clear timerLogs, otherwise server (or UI) might recalculate duration from logs.
+                await syncService.postTask({ ...task, duration: 0, timerLogs: [] });
+                this.showToast('Server task reset to 0s', 'success');
+            } catch (e) {
+                alert('Failed to update server. Task will be deleted locally only.');
+            }
+        } else {
+             const confirmed = await this.showConfirm(
+                `Delete "${task.name}"?`,
+                'Delete Task'
+            );
+            if (!confirmed) return;
+        }
+        
         try {
             await storage.deleteTask(id);
-            await this.loadTasks();
             this.showToast('Task deleted', 'success');
+            await this.loadTasks();
         } catch (error) {
             console.error('Delete failed:', error);
-            this.showToast('Failed to delete', 'error');
+            this.showToast('Failed to delete task', 'error');
         }
     }
-
+    
     async syncTask(id, direction = 'up') {
         try {
             if (direction === 'down') {
@@ -447,7 +529,14 @@ class TimeTrackerApp {
                     return;
                 }
                 await storage.overwriteTask(serverTask);
-                this.showToast('Task fetched from server', 'success');
+                
+                // REACTIVE UPDATE: If this is the active task, update the timer display
+                if (this.activeTaskId === id) {
+                    this.timer.setTime(serverTask.duration);
+                    this.showToast('Task fetched from server & timer updated', 'success');
+                } else {
+                    this.showToast('Task fetched from server', 'success');
+                }
             } else {
                 const task = await storage.getTask(id);
                 if (!task) return;
@@ -464,37 +553,58 @@ class TimeTrackerApp {
     
     async loadTasks() {
         try {
-            const allTasks = await storage.getAllTasks();
+            // MERGE STRATEGY:
+            // 1. Fetch Server Tasks first
+            // 2. Identify "Server Only" tasks -> Create them locally (Auto-Download)
+            // 3. Identify "Local Only" tasks -> Will be marked 'missing' (❌)
+            // 4. Identify Common tasks -> Consistency check
             
-            // Use local date for today (handle timezone offset)
             const now = new Date();
             const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
             const currentSession = localStorage.getItem('timetracker-session-date') || today;
             
-            console.log(`Loading tasks. Session: ${currentSession}, Today: ${today}, Total tasks in DB: ${allTasks.length}`);
-            
-            // Filter tasks for current session
-            // Include tasks without sessionDate (legacy) only if viewing today
-            const tasks = allTasks.filter(task => {
-                if (task.sessionDate) {
-                    return task.sessionDate === currentSession;
+            let serverTasks = [];
+            try {
+                serverTasks = await syncService.fetchServerTasks(currentSession);
+                
+                // Get pre-merge local tasks
+                const localTasksRaw = await storage.getAllTasks();
+                const localMap = new Map(localTasksRaw.map(t => [t.id, t]));
+                
+                // Import Server-Only tasks
+                for (const st of serverTasks) {
+                    if (!localMap.has(st.id)) {
+                        // Task exists on server but not locally -> Create it (Tick ✅)
+                        const newTask = {
+                            ...st,
+                            sessionDate: currentSession, // Ensure session match
+                            timerLogs: st.timerLogs || [] 
+                        };
+                        await storage.saveTask(newTask);
+                        console.log(`Merge: Imported server-only task ${st.name} (${st.id})`);
+                    }
                 }
-                // Legacy tasks without sessionDate - show if viewing today
+            } catch (error) {
+                console.warn('Merge: Server fetch failed (Offline?)', error);
+            }
+
+            // Reload all tasks (now merged)
+            const allTasks = await storage.getAllTasks();
+            
+            // Filter
+            const tasks = allTasks.filter(task => {
+                if (task.sessionDate) return task.sessionDate === currentSession;
                 return currentSession === today;
             });
             
-            // Sync Integration: Fetch server tasks and compare
-            try {
-                const serverTasks = await syncService.fetchServerTasks(currentSession);
-                
-                // Attach sync status to each task
-                tasks.forEach(task => {
-                    const serverTask = serverTasks.find(st => st.id === task.id);
-                    task.syncStatus = syncService.compareTasks(task, serverTask);
-                });
-            } catch (error) {
-                console.error('Sync fetch failed:', error);
-            }
+            // Apply Sync Status
+            tasks.forEach(task => {
+                const serverTask = serverTasks.find(st => st.id === task.id);
+                // If server fetch failed, serverTasks is empty -> everything is 'missing' or 'unknown'?
+                // If offline, maybe we shouldn't show ❌? 
+                // For now, assume consistent comparison logic.
+                 task.syncStatus = syncService.compareTasks(task, serverTask);
+            });
             
             this.taskList.render(tasks);
             this.taskList.updateStats(tasks, this.els.totalTasks, this.els.totalTime);
@@ -728,6 +838,59 @@ class TimeTrackerApp {
         }
     }
     
+    /**
+     * Change session date by offset (negative for past, positive for future)
+     * @param {number} offset - Number of days to add/subtract
+     */
+    async changeSessionDate(offset) {
+        const now = new Date();
+        const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        
+        // Parse current session date
+        const currentDate = new Date(this.sessionDate + 'T00:00:00');
+        
+        // Calculate new date
+        const newDate = new Date(currentDate);
+        newDate.setDate(newDate.getDate() + offset);
+        
+        // Format new date as YYYY-MM-DD
+        const newDateString = new Date(newDate.getTime() - (newDate.getTimezoneOffset() * 60000))
+            .toISOString()
+            .split('T')[0];
+        
+        // Prevent going into the future
+        if (newDateString > today) {
+            this.showToast('Cannot navigate to future dates', 'error');
+            return;
+        }
+        
+        // Update session date
+        this.sessionDate = newDateString;
+        localStorage.setItem('timetracker-session-date', newDateString);
+        
+        // Reset timer state for new session
+        if (this.timer.getIsRunning()) {
+            this.timer.stop();
+        }
+        this.timer.reset();
+        this.taskEntry.clear();
+        this.activeTaskId = null;
+        this.timerLogs = [];
+        
+        // Update UI
+        await this.loadTasks();
+        this.updateSessionDisplay();
+        
+        // Show feedback
+        const dateObj = new Date(newDateString + 'T00:00:00');
+        const formatted = dateObj.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+        this.showToast(`Switched to ${newDateString === today ? 'Today' : formatted}`, 'success');
+    }
+    
     async startNewSession() {
         const now = new Date();
         const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
@@ -745,9 +908,73 @@ class TimeTrackerApp {
         this.showToast('Switched to today', 'success');
     }
     
+    /**
+     * Show custom confirmation modal
+     * @param {string} message 
+     * @param {string} title 
+     * @param {boolean} isDanger 
+     * @returns {Promise<boolean>}
+     */
+    showConfirm(message, title = 'Are you sure?', isDanger = false) {
+        return new Promise((resolve) => {
+            this.els.confirmTitle.textContent = title;
+            this.els.confirmMessage.textContent = message;
+            
+            // Allow line breaks in message
+            this.els.confirmMessage.innerHTML = message.replace(/\n/g, '<br>');
+
+            // Update button styles
+            this.els.confirmOkBtn.className = isDanger ? 'btn btn-save' : 'btn btn-primary';
+            // Actually dangerous actions should probably look dangerous (red)
+            if (isDanger) {
+                 this.els.confirmOkBtn.style.background = 'var(--color-danger)';
+                 this.els.confirmOkBtn.style.color = 'white';
+            } else {
+                 this.els.confirmOkBtn.style.background = ''; // Reset to class default
+                 this.els.confirmOkBtn.style.color = '';
+            }
+
+            this.els.confirmModal.classList.remove('hidden');
+
+            const cleanup = () => {
+                this.els.confirmModal.classList.add('hidden');
+                // Clone to remove listeners
+                const okClone = this.els.confirmOkBtn.cloneNode(true);
+                const cancelClone = this.els.confirmCancelBtn.cloneNode(true);
+                this.els.confirmOkBtn.replaceWith(okClone);
+                this.els.confirmCancelBtn.replaceWith(cancelClone);
+                
+                // Update cache
+                this.els.confirmOkBtn = okClone;
+                this.els.confirmCancelBtn = cancelClone;
+            };
+
+            this.els.confirmOkBtn.onclick = () => {
+                cleanup();
+                resolve(true);
+            };
+
+            this.els.confirmCancelBtn.onclick = () => {
+                cleanup();
+                resolve(false);
+            };
+            
+            // Close on background click
+            // (Optional: can add later if requested, simpler for now to force button choice)
+        });
+    }
+
     async clearAllData() {
-        console.log('Clear Data button clicked');
-        if (confirm('⚠️ DANGER ZONE ⚠️\n\nAre you sure you want to delete ALL data? This includes all task history and settings.\n\nThis action cannot be undone.')) {
+        const confirmed = await this.showConfirm(
+            '⚠️ DANGER ZONE ⚠️\n\nAre you sure you want to delete all LOCAL data?\n\n' +
+            '• Local task history and settings will be wiped.\n' +
+            '• Synced server data will NOT be deleted.\n\n' +
+            'This action cannot be undone.',
+            'Clear Local Data',
+            true
+        );
+
+        if (confirmed) {
             console.log('User confirmed. Clearing data...');
             try {
                 // Clear IndexedDB

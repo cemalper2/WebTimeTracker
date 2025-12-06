@@ -109,6 +109,29 @@ class MockSyncService {
     }
 
     /**
+     * Debug: Get ALL tasks from server (no date filter)
+     * @returns {Promise<Array>}
+     */
+    async getAllServerTasks() {
+        await this.ensureReady();
+        
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                console.log('Mock Server Total Tasks:', request.result.length);
+                request.result.forEach(t => {
+                    console.log(`  - ${t.name} (${t.sessionDate}): ${t.duration}s`);
+                });
+                resolve(request.result);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
      * Compare local task with server task
      * @param {Object} local 
      * @param {Object|undefined} server 
@@ -130,6 +153,89 @@ class MockSyncService {
             return 'consistent';
         }
         return 'inconsistent';
+    }
+
+    /**
+     * Debug: Clear all server data
+     */
+    async clearServer() {
+        await this.ensureReady();
+        
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.clear();
+
+            request.onsuccess = () => {
+                console.log('Mock Server: All data cleared');
+                resolve();
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * Debug: Seed server with sample data for the past 30 days
+     */
+    async seedServer() {
+        await this.ensureReady();
+        
+        const now = new Date();
+        const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        
+        const taskNames = [
+            'Morning Standup',
+            'Code Review',
+            'Feature Development',
+            'Bug Fixes',
+            'Documentation',
+            'Team Meeting',
+            'Design Session',
+            'Testing',
+            'Deployment',
+            'Research',
+            'Learning',
+            'Planning',
+            'Client Call',
+            'Refactoring',
+            'Performance Optimization'
+        ];
+
+        const sampleTasks = [];
+        
+        // Generate tasks for the past 30 days
+        for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+            const date = new Date(now);
+            date.setDate(date.getDate() - daysAgo);
+            const dateString = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+                .toISOString()
+                .split('T')[0];
+            
+            // 2-5 tasks per day
+            const tasksPerDay = Math.floor(Math.random() * 4) + 2;
+            
+            for (let i = 0; i < tasksPerDay; i++) {
+                const name = taskNames[Math.floor(Math.random() * taskNames.length)];
+                const duration = Math.floor(Math.random() * 7200) + 900; // 15min to 2hrs
+                
+                sampleTasks.push({
+                    id: `seed_${dateString}_${i}`,
+                    name,
+                    duration,
+                    sessionDate: dateString,
+                    createdAt: date.getTime() - (i * 3600000),
+                    timerLogs: []
+                });
+            }
+        }
+
+        // Post all tasks to server
+        for (const task of sampleTasks) {
+            await this.postTask(task);
+        }
+        
+        console.log(`Mock Server: Seeded with ${sampleTasks.length} tasks across 30 days`);
+        return sampleTasks;
     }
 }
 

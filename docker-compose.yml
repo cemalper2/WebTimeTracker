@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  time-tracker:
+    build: .
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+    container_name: time-tracker-app
