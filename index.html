@@ -75,24 +75,9 @@
                         <div id="timeEditModal" class="time-edit-modal hidden">
                             <div class="time-edit-content glass-card">
                                 <h3>Edit Time</h3>
-                                <div class="time-inputs">
-                                    <div class="time-spinner">
-                                        <button type="button" class="spinner-btn up" data-target="editHours">▲</button>
-                                        <input type="text" id="editHours" maxlength="2" placeholder="00">
-                                        <button type="button" class="spinner-btn down" data-target="editHours">▼</button>
-                                    </div>
-                                    <span class="time-colon">:</span>
-                                    <div class="time-spinner">
-                                        <button type="button" class="spinner-btn up" data-target="editMinutes">▲</button>
-                                        <input type="text" id="editMinutes" maxlength="2" placeholder="00">
-                                        <button type="button" class="spinner-btn down" data-target="editMinutes">▼</button>
-                                    </div>
-                                    <span class="time-colon">:</span>
-                                    <div class="time-spinner">
-                                        <button type="button" class="spinner-btn up" data-target="editSeconds">▲</button>
-                                        <input type="text" id="editSeconds" maxlength="2" placeholder="00">
-                                        <button type="button" class="spinner-btn down" data-target="editSeconds">▼</button>
-                                    </div>
+                                <div class="time-input-single">
+                                    <input type="text" id="editTimeInput" placeholder="00:00:00" autocomplete="off">
+                                    <span class="time-hint">Format: HH:MM:SS or MM:SS</span>
                                 </div>
                                 <div class="edit-actions">
                                     <button id="cancelEdit" class="btn btn-secondary">Cancel</button>
@@ -187,6 +172,43 @@
         <footer class="app-footer">
             <p>Your time data is stored locally in your browser</p>
         </footer>
+    </div>
+
+    <!-- Detail Panel Overlay -->
+    <div id="detailPanelOverlay" class="detail-panel-overlay hidden"></div>
+    
+    <!-- Detail Panel -->
+    <div id="detailPanel" class="detail-panel">
+        <div class="detail-panel-header">
+            <h2>📋 Task Details</h2>
+            <button id="closeDetailPanel" class="btn-close-panel" title="Close">✕</button>
+        </div>
+        <div class="detail-panel-content">
+            <div class="detail-task-info">
+                <div class="detail-field">
+                    <label>Task Name</label>
+                    <span id="detailTaskName">-</span>
+                </div>
+                <div class="detail-field">
+                    <label>Total Duration</label>
+                    <span id="detailDuration">00:00:00</span>
+                </div>
+                <div class="detail-field">
+                    <label>Session Date</label>
+                    <span id="detailSessionDate">-</span>
+                </div>
+                <div class="detail-field">
+                    <label>Sync Status</label>
+                    <span id="detailSyncStatus">-</span>
+                </div>
+            </div>
+            <div class="detail-timeline-section">
+                <h3>📜 Event Timeline</h3>
+                <div id="detailTimeline" class="detail-timeline">
+                    <div class="empty-timeline">No events recorded</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Toast Notification -->

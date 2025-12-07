@@ -229,13 +229,22 @@ class MockSyncService {
             }
         }
 
-        // Post all tasks to server
-        for (const task of sampleTasks) {
-            await this.postTask(task);
-        }
-        
-        console.log(`Mock Server: Seeded with ${sampleTasks.length} tasks across 30 days`);
-        return sampleTasks;
+        // Bulk insert using single transaction (no delays)
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            
+            for (const task of sampleTasks) {
+                store.put(task);
+            }
+            
+            transaction.oncomplete = () => {
+                console.log(`Mock Server: Seeded with ${sampleTasks.length} tasks across 30 days`);
+                resolve(sampleTasks);
+            };
+            
+            transaction.onerror = () => reject(transaction.error);
+        });
     }
 }
 

@@ -5,6 +5,7 @@
 import { Timer } from './components/timer.js';
 import { TaskEntry } from './components/taskEntry.js';
 import { TaskList } from './components/taskList.js';
+import { DetailPanel } from './components/detailPanel.js';
 import { storage } from './services/storage.js';
 import { syncService } from './services/sync.js';
 import { formatTime, generateId } from './utils/formatters.js';
@@ -15,6 +16,7 @@ class TimeTrackerApp {
         this.taskEntry = null;
         this.taskList = null;
         this.taskList = null;
+        this.detailPanel = null;
         this.activeTaskId = null;  // Current active task (new or resumed)
         this.editingTaskId = null; // for Time Edit Modal only
         this.sessionDate = null;   // Current session date (YYYY-MM-DD)
@@ -52,9 +54,7 @@ class TimeTrackerApp {
             totalTasks: document.getElementById('totalTasks'),
             totalTime: document.getElementById('totalTime'),
             timeEditModal: document.getElementById('timeEditModal'),
-            editHours: document.getElementById('editHours'),
-            editMinutes: document.getElementById('editMinutes'),
-            editSeconds: document.getElementById('editSeconds'),
+            editTimeInput: document.getElementById('editTimeInput'),
             cancelEdit: document.getElementById('cancelEdit'),
             confirmEdit: document.getElementById('confirmEdit'),
             toast: document.getElementById('toast'),
@@ -110,8 +110,12 @@ class TimeTrackerApp {
             onResume: (id) => this.resumeTask(id),
             onEdit: (id) => this.editTaskDuration(id),
             onSync: (id, direction) => this.syncTask(id, direction),
-            onRename: (id) => this.openRenameModal(id)
+            onRename: (id) => this.openRenameModal(id),
+            onDetails: (id) => this.openDetailPanel(id)
         });
+        
+        // Initialize the detail panel
+        this.detailPanel = new DetailPanel();
     }
     
     bindEvents() {
@@ -272,13 +276,11 @@ class TimeTrackerApp {
     openTimeEditModal() {
         if (this.timer.getIsRunning()) this.timer.stop();
         const time = formatTime(this.timer.getTime());
-        this.els.editHours.value = parseInt(time.hours, 10);
-        this.els.editMinutes.value = parseInt(time.minutes, 10);
-        this.els.editSeconds.value = parseInt(time.seconds, 10);
+        // Set the single input with formatted time HH:MM:SS
+        this.els.editTimeInput.value = `${time.hours}:${time.minutes}:${time.seconds}`;
         this.els.timeEditModal.classList.remove('hidden');
-        this.els.editSeconds.value = parseInt(time.seconds, 10);
-        this.els.timeEditModal.classList.remove('hidden');
-        this.els.editHours.focus();
+        this.els.editTimeInput.focus();
+        this.els.editTimeInput.select();
     }
     
     initSpinnerButtons() {
@@ -308,6 +310,36 @@ class TimeTrackerApp {
                 input.value = String(value);
             });
         });
+    }
+    
+    /**
+     * Open the detail panel for a task
+     * @param {string} id - Task ID
+     */
+    async openDetailPanel(id) {
+        try {
+            const task = await storage.getTask(id);
+            if (!task) {
+                this.showToast('Task not found', 'error');
+                return;
+            }
+            
+            // Determine sync status
+            let syncStatus = 'unknown';
+            try {
+                const serverTask = await syncService.getServerTask(id);
+                const comparison = syncService.compareTasks(task, serverTask);
+                syncStatus = comparison === 'consistent' ? 'synced' : comparison;
+            } catch (e) {
+                console.warn('Could not fetch sync status:', e);
+            }
+            
+            // Open the detail panel
+            this.detailPanel.open(task, syncStatus);
+        } catch (error) {
+            console.error('Error opening detail panel:', error);
+            this.showToast('Error loading task details', 'error');
+        }
     }
     
     async openRenameModal(id) {
@@ -374,23 +406,112 @@ class TimeTrackerApp {
         if (!this.renamingTaskId) return;
         
         try {
-            await storage.updateTask(this.renamingTaskId, { 
-                name: newName,
-                updatedAt: Date.now()
-            });
-            
-            // Update active timer input if this is the active task
-            if (this.activeTaskId === this.renamingTaskId) {
-                this.taskEntry.inputElement.value = newName;
+            const oldTask = await storage.getTask(this.renamingTaskId);
+            if (!oldTask) {
+                this.showToast('Task not found', 'error');
+                return;
             }
             
-            this.closeRenameModal();
-            await this.loadTasks();  // Sync status will be recalculated
-            this.showToast('Task renamed', 'success');
+            // Check if task is synced (exists on server)
+            let isOnServer = false;
+            try {
+                const serverTask = await syncService.getServerTask(this.renamingTaskId);
+                if (serverTask) isOnServer = true;
+            } catch (e) {
+                console.warn('Server check failed:', e);
+            }
+            
+            if (isOnServer) {
+                // SYNCED TASK: Create new task with new ID, delete old local copy
+                // This allows the old synced task to be re-imported from server
+                const newTask = {
+                    ...oldTask,
+                    id: generateId(),  // New ID
+                    name: newName,
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                };
+                
+                // Save new task
+                await storage.saveTask(newTask);
+                
+                // Delete old local task (will be re-imported from server)
+                await storage.deleteTask(this.renamingTaskId);
+                
+                // Update active task reference if needed
+                if (this.activeTaskId === this.renamingTaskId) {
+                    this.activeTaskId = newTask.id;
+                    this.taskEntry.inputElement.value = newName;
+                }
+                
+                this.closeRenameModal();
+                await this.loadTasks();  // Old task will be re-imported from server
+                this.showToast('Task split: original synced + renamed copy', 'success');
+            } else {
+                // LOCAL-ONLY TASK: Just update the name (original behavior)
+                await storage.updateTask(this.renamingTaskId, { 
+                    name: newName,
+                    updatedAt: Date.now()
+                });
+                
+                // Update active timer input if this is the active task
+                if (this.activeTaskId === this.renamingTaskId) {
+                    this.taskEntry.inputElement.value = newName;
+                }
+                
+                this.closeRenameModal();
+                await this.loadTasks();
+                this.showToast('Task renamed', 'success');
+            }
         } catch (error) {
             console.error('Rename failed:', error);
             this.showToast('Failed to rename task', 'error');
         }
+    }
+    
+    /**
+     * Parse time input string into hours, minutes, seconds
+     * Supports formats: HH:MM:SS, MM:SS, or just seconds
+     * @param {string} input - Time string
+     * @returns {{h: number, m: number, s: number}|null} Parsed time or null if invalid
+     */
+    parseTimeInput(input) {
+        if (!input) return null;
+        
+        // Try HH:MM:SS or MM:SS format
+        const parts = input.split(':').map(p => parseInt(p.trim(), 10));
+        
+        if (parts.some(isNaN)) return null;
+        
+        let h = 0, m = 0, s = 0;
+        
+        if (parts.length === 3) {
+            // HH:MM:SS
+            [h, m, s] = parts;
+        } else if (parts.length === 2) {
+            // MM:SS
+            [m, s] = parts;
+        } else if (parts.length === 1) {
+            // Just seconds or minutes
+            s = parts[0];
+        } else {
+            return null;
+        }
+        
+        // Validate ranges (allow overflow for normalization)
+        if (h < 0 || m < 0 || s < 0) return null;
+        
+        // Normalize: e.g., 90 seconds -> 1 min 30 sec
+        if (s >= 60) {
+            m += Math.floor(s / 60);
+            s = s % 60;
+        }
+        if (m >= 60) {
+            h += Math.floor(m / 60);
+            m = m % 60;
+        }
+        
+        return { h, m, s };
     }
     
     closeTimeEditModal() {
@@ -398,29 +519,22 @@ class TimeTrackerApp {
     }
     
     async applyTimeEdit() {
-        let h = parseInt(this.els.editHours.value, 10) || 0;
-        let m = parseInt(this.els.editMinutes.value, 10) || 0;
-        let s = parseInt(this.els.editSeconds.value, 10) || 0;
+        const input = this.els.editTimeInput.value.trim();
         
-        // Sanity checks
-        const MAX_HOURS = 24;  // Maximum reasonable work hours
-        if (h < 0) h = 0;
+        // Parse time input: supports HH:MM:SS or MM:SS or just seconds
+        const parsed = this.parseTimeInput(input);
+        if (parsed === null) {
+            this.showToast('Invalid time format. Use HH:MM:SS or MM:SS', 'error');
+            this.els.editTimeInput.focus();
+            return;
+        }
+        
+        const { h, m, s } = parsed;
+        const MAX_HOURS = 24;
+        
         if (h > MAX_HOURS) {
             this.showToast(`Hours cannot exceed ${MAX_HOURS}`, 'error');
-            this.els.editHours.value = MAX_HOURS;
-            this.els.editHours.focus();
-            return;
-        }
-        if (m < 0 || m > 59) {
-            this.showToast('Minutes must be 0-59', 'error');
-            this.els.editMinutes.value = Math.min(59, Math.max(0, m));
-            this.els.editMinutes.focus();
-            return;
-        }
-        if (s < 0 || s > 59) {
-            this.showToast('Seconds must be 0-59', 'error');
-            this.els.editSeconds.value = Math.min(59, Math.max(0, s));
-            this.els.editSeconds.focus();
+            this.els.editTimeInput.focus();
             return;
         }
         
@@ -453,13 +567,27 @@ class TimeTrackerApp {
             console.log('[DEBUG] Editing current timer, setting to:', newDuration);
             this.timer.setTime(newDuration);
             
-            // Auto-add feature: Create history entry if BOTH time > 0 AND name provided
-            const taskName = this.taskEntry.getValue().trim();
-            if (!this.activeTaskId && newDuration > 0 && taskName) {
-                await this.createAutoSaveTask();
-                // Update the newly created task with the correct duration
-                await this.updateAutoSaveTask({ duration: newDuration });
-                this.showToast('Task added to history', 'success');
+            // If there's an active task, update it in storage and refresh the list
+            if (this.activeTaskId) {
+                try {
+                    await storage.updateTask(this.activeTaskId, { duration: newDuration });
+                    await this.loadTasks();
+                    this.showToast('Task duration updated', 'success');
+                } catch (error) {
+                    console.error('Failed to update active task:', error);
+                    this.showToast('Time updated locally', 'success');
+                }
+            } else if (newDuration > 0) {
+                // Auto-add feature: Create history entry if time > 0 AND name provided
+                const taskName = this.taskEntry.getValue().trim();
+                if (taskName) {
+                    await this.createAutoSaveTask();
+                    // Update the newly created task with the correct duration
+                    await this.updateAutoSaveTask({ duration: newDuration });
+                    this.showToast('Task added to history', 'success');
+                } else {
+                    this.showToast('Time updated', 'success');
+                }
             } else {
                 this.showToast('Time updated', 'success');
             }
@@ -569,12 +697,10 @@ class TimeTrackerApp {
             
             this.editingTaskId = id;
             const time = formatTime(task.duration);
-            this.els.editHours.value = parseInt(time.hours, 10);
-            this.els.editMinutes.value = parseInt(time.minutes, 10);
-            this.els.editSeconds.value = parseInt(time.seconds, 10);
-            this.els.editSeconds.value = parseInt(time.seconds, 10);
+            this.els.editTimeInput.value = `${time.hours}:${time.minutes}:${time.seconds}`;
             this.els.timeEditModal.classList.remove('hidden');
-            this.els.editHours.focus();
+            this.els.editTimeInput.focus();
+            this.els.editTimeInput.select();
         } catch (error) {
             console.error('Edit failed:', error);
             this.showToast('Failed to edit task', 'error');
@@ -694,8 +820,8 @@ class TimeTrackerApp {
                             sessionDate: currentSession, // Ensure session match
                             timerLogs: st.timerLogs || [] 
                         };
-                        await storage.saveTask(newTask);
-                        console.log(`Merge: Imported server-only task ${st.name} (${st.id})`);
+                        // Use overwriteTask (put) instead of saveTask (add) to avoid ConstraintError
+                        await storage.overwriteTask(newTask);
                     }
                 }
             } catch (error) {

@@ -1,5 +1,7 @@
 # Time Tracker
 
+[![CI](https://github.com/cemalper2/WebTimeTracker/actions/workflows/ci.yml/badge.svg)](https://github.com/cemalper2/WebTimeTracker/actions/workflows/ci.yml)
+
 A modern, feature-rich time tracking application with keyboard shortcuts, data synchronization, and session management.
 
 📖 **[User Guide](USER_GUIDE.md)** - Complete documentation for all features

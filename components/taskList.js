@@ -12,6 +12,7 @@ export class TaskList {
         this.onResume = options.onResume || (() => {});
         this.onSync = options.onSync || (() => {});
         this.onRename = options.onRename || (() => {});
+        this.onDetails = options.onDetails || (() => {});
     }
     
     render(tasks) {
@@ -64,6 +65,7 @@ export class TaskList {
                             ? `<button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Push to Server (Upload)">☁️⬆️</button>`
                             : '')
                     }
+                    <button class="btn-icon-only details" data-action="details" title="View Details">ℹ️</button>
                     <button class="btn-icon-only rename" data-action="rename" title="Rename">📝</button>
                     <button class="btn-icon-only edit" data-action="edit" title="Edit Time">✏️</button>
                     <button class="btn-icon-only delete" data-action="delete" title="Delete">🗑️</button>
@@ -112,7 +114,45 @@ export class TaskList {
             });
         });
         
-        // Click on task item itself to resume
+        this.container.querySelectorAll('[data-action="details"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.closest('.task-item').dataset.id;
+                this.onDetails(id);
+            });
+        });
+        
+        // Double-click on task name to rename
+        this.container.querySelectorAll('.task-name').forEach(nameEl => {
+            nameEl.style.cursor = 'text';
+            nameEl.title = 'Double-click to rename';
+            nameEl.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const id = nameEl.closest('.task-item').dataset.id;
+                this.onRename(id);
+            });
+            // Prevent single click from bubbling to task-item (which would resume)
+            nameEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
+        
+        // Double-click on task time to edit duration
+        this.container.querySelectorAll('.task-time').forEach(timeEl => {
+            timeEl.style.cursor = 'text';
+            timeEl.title = 'Double-click to edit time';
+            timeEl.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const id = timeEl.closest('.task-item').dataset.id;
+                this.onEdit(id);
+            });
+            // Prevent single click from bubbling to task-item (which would resume)
+            timeEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
+        
+        // Click on task item itself to resume (but not on name or time)
         this.container.querySelectorAll('.task-item').forEach(item => {
             item.style.cursor = 'pointer';
             item.addEventListener('click', () => {

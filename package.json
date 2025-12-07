@@ -1,0 +1,32 @@
+{
+  "name": "time-tracker",
+  "version": "1.0.0",
+  "description": "A modern, feature-rich time tracking application with keyboard shortcuts, data synchronization, and session management.",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cemalper2/WebTimeTracker.git"
+  },
+  "keywords": ["time-tracker", "productivity", "timer"],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cemalper2/WebTimeTracker/issues"
+  },
+  "homepage": "https://github.com/cemalper2/WebTimeTracker#readme",
+  "devDependencies": {
+    "jest": "^30.2.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "moduleFileExtensions": ["js"],
+    "testMatch": ["**/__tests__/**/*.test.js", "**/tests/**/*.test.js"],
+    "collectCoverageFrom": ["utils/**/*.js", "components/**/*.js"],
+    "coverageDirectory": "coverage"
+  }
+}
