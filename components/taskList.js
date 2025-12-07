@@ -11,6 +11,7 @@ export class TaskList {
         this.onEdit = options.onEdit || (() => {});
         this.onResume = options.onResume || (() => {});
         this.onSync = options.onSync || (() => {});
+        this.onRename = options.onRename || (() => {});
     }
     
     render(tasks) {
@@ -59,10 +60,11 @@ export class TaskList {
                              <button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Push to Server (Overwrite)">☁️⬆️</button>
                              <button class="btn-icon-only sync" data-action="sync" data-direction="down" title="Pull from Server (Overwrite Local)">☁️⬇️</button>
                            </div>`
-                        : (task.syncStatus !== 'consistent' 
-                            ? `<button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Upload to Server">☁️</button>`
+                        : (task.syncStatus === 'missing' 
+                            ? `<button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Push to Server (Upload)">☁️⬆️</button>`
                             : '')
                     }
+                    <button class="btn-icon-only rename" data-action="rename" title="Rename">📝</button>
                     <button class="btn-icon-only edit" data-action="edit" title="Edit Time">✏️</button>
                     <button class="btn-icon-only delete" data-action="delete" title="Delete">🗑️</button>
                 </div>
@@ -91,6 +93,14 @@ export class TaskList {
                 e.stopPropagation();
                 const id = btn.closest('.task-item').dataset.id;
                 this.onResume(id);
+            });
+        });
+        
+        this.container.querySelectorAll('[data-action="rename"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.closest('.task-item').dataset.id;
+                this.onRename(id);
             });
         });
         

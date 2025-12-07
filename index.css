@@ -237,6 +237,43 @@ body {
     border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+/* Date Navigation */
+.date-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.btn-date-nav {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    font-size: var(--font-size-sm);
+}
+
+.btn-date-nav:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-accent-primary);
+    border-color: var(--color-accent-primary);
+}
+
+.btn-date-nav:active {
+    transform: scale(0.95);
+}
+
+.btn-date-nav:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
 .btn-new-session {
     padding: var(--space-sm) var(--space-md);
     font-size: var(--font-size-sm);

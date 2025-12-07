@@ -70,13 +70,21 @@ class TimeTrackerApp {
             motivationalQuote: document.getElementById('motivationalQuote'),
             sessionDatePicker: document.getElementById('sessionDatePicker'),
             clearDataBtn: document.getElementById('clearDataBtn'),
+            prevDayBtn: document.getElementById('prevDayBtn'),
+            nextDayBtn: document.getElementById('nextDayBtn'),
         
             // Confirm Modal
             confirmModal: document.getElementById('confirmModal'),
             confirmTitle: document.getElementById('confirmTitle'),
             confirmMessage: document.getElementById('confirmMessage'),
             confirmOkBtn: document.getElementById('confirmOkBtn'),
-            confirmCancelBtn: document.getElementById('confirmCancelBtn')
+            confirmCancelBtn: document.getElementById('confirmCancelBtn'),
+            
+            // Rename Modal
+            renameModal: document.getElementById('renameModal'),
+            renameInput: document.getElementById('renameInput'),
+            renameConfirmBtn: document.getElementById('renameConfirmBtn'),
+            renameCancelBtn: document.getElementById('renameCancelBtn')
         };
     }
     
@@ -101,7 +109,8 @@ class TimeTrackerApp {
             onDelete: (id) => this.deleteTask(id),
             onResume: (id) => this.resumeTask(id),
             onEdit: (id) => this.editTaskDuration(id),
-            onSync: (id, direction) => this.syncTask(id, direction)
+            onSync: (id, direction) => this.syncTask(id, direction),
+            onRename: (id) => this.openRenameModal(id)
         });
     }
     
@@ -149,7 +158,11 @@ class TimeTrackerApp {
         this.els.themeToggle.addEventListener('click', () => this.toggleTheme());
         this.els.clearDataBtn.addEventListener('click', () => this.clearAllData());
         
-        // Date Navigation
+        // Date Navigation Buttons
+        this.els.prevDayBtn.addEventListener('click', () => this.changeSessionDate(-1));
+        this.els.nextDayBtn.addEventListener('click', () => this.changeSessionDate(1));
+        
+        // Date Navigation (click on date to pick)
         this.els.sessionDate.addEventListener('click', () => {
             // Set picker value to current session date before opening
             this.els.sessionDatePicker.value = this.sessionDate;
@@ -297,6 +310,89 @@ class TimeTrackerApp {
         });
     }
     
+    async openRenameModal(id) {
+        try {
+            const task = await storage.getTask(id);
+            if (!task) {
+                this.showToast('Task not found', 'error');
+                return;
+            }
+            
+            this.renamingTaskId = id;
+            this.els.renameInput.value = task.name;
+            this.els.renameModal.classList.remove('hidden');
+            this.els.renameInput.focus();
+            this.els.renameInput.select();
+            
+            // Set up event handlers
+            const handleConfirm = async () => {
+                await this.applyRename();
+                cleanup();
+            };
+            
+            const handleCancel = () => {
+                this.closeRenameModal();
+                cleanup();
+            };
+            
+            const handleKeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirm();
+                } else if (e.key === 'Escape') {
+                    handleCancel();
+                }
+            };
+            
+            const cleanup = () => {
+                this.els.renameConfirmBtn.removeEventListener('click', handleConfirm);
+                this.els.renameCancelBtn.removeEventListener('click', handleCancel);
+                this.els.renameInput.removeEventListener('keydown', handleKeydown);
+            };
+            
+            this.els.renameConfirmBtn.addEventListener('click', handleConfirm);
+            this.els.renameCancelBtn.addEventListener('click', handleCancel);
+            this.els.renameInput.addEventListener('keydown', handleKeydown);
+        } catch (error) {
+            console.error('Rename modal failed:', error);
+            this.showToast('Failed to open rename', 'error');
+        }
+    }
+    
+    closeRenameModal() {
+        this.els.renameModal.classList.add('hidden');
+        this.renamingTaskId = null;
+    }
+    
+    async applyRename() {
+        const newName = this.els.renameInput.value.trim();
+        if (!newName) {
+            this.showToast('Name cannot be empty', 'error');
+            return;
+        }
+        
+        if (!this.renamingTaskId) return;
+        
+        try {
+            await storage.updateTask(this.renamingTaskId, { 
+                name: newName,
+                updatedAt: Date.now()
+            });
+            
+            // Update active timer input if this is the active task
+            if (this.activeTaskId === this.renamingTaskId) {
+                this.taskEntry.inputElement.value = newName;
+            }
+            
+            this.closeRenameModal();
+            await this.loadTasks();  // Sync status will be recalculated
+            this.showToast('Task renamed', 'success');
+        } catch (error) {
+            console.error('Rename failed:', error);
+            this.showToast('Failed to rename task', 'error');
+        }
+    }
+    
     closeTimeEditModal() {
         this.els.timeEditModal.classList.add('hidden');
     }
@@ -356,7 +452,17 @@ class TimeTrackerApp {
             // Editing current timer
             console.log('[DEBUG] Editing current timer, setting to:', newDuration);
             this.timer.setTime(newDuration);
-            this.showToast('Time updated', 'success');
+            
+            // Auto-add feature: Create history entry if BOTH time > 0 AND name provided
+            const taskName = this.taskEntry.getValue().trim();
+            if (!this.activeTaskId && newDuration > 0 && taskName) {
+                await this.createAutoSaveTask();
+                // Update the newly created task with the correct duration
+                await this.updateAutoSaveTask({ duration: newDuration });
+                this.showToast('Task added to history', 'success');
+            } else {
+                this.showToast('Time updated', 'success');
+            }
         }
         this.closeTimeEditModal();
     }
@@ -395,12 +501,20 @@ class TimeTrackerApp {
     }
     
     handleTaskNameChange(name) {
-        if (this.activeTaskId) {
-            if (this.nameUpdateTimeout) clearTimeout(this.nameUpdateTimeout);
-            this.nameUpdateTimeout = setTimeout(() => {
-                this.updateAutoSaveTask({ name: name || 'Untitled Task' });
-            }, 500);
-        }
+        if (this.nameUpdateTimeout) clearTimeout(this.nameUpdateTimeout);
+        this.nameUpdateTimeout = setTimeout(async () => {
+            const trimmedName = (name || '').trim();
+            const currentTime = this.timer.getTime();
+            
+            if (this.activeTaskId) {
+                // Update existing task name
+                this.updateAutoSaveTask({ name: trimmedName || 'Untitled Task' });
+            } else if (trimmedName && currentTime > 0) {
+                // Auto-add feature: Create history entry if BOTH time > 0 AND name provided
+                await this.createAutoSaveTask();
+                this.showToast('Task added to history', 'success');
+            }
+        }, 500);
     }
 
     async startNewTask() {
@@ -824,6 +938,7 @@ class TimeTrackerApp {
             this.els.sessionDate.textContent = '📅 Today';
             this.els.sessionDate.classList.remove('past-session');
             this.els.newSessionBtn.classList.add('hidden');
+            this.els.nextDayBtn.disabled = true;  // Can't go to future
         } else {
             // Format the date nicely
             const date = new Date(this.sessionDate + 'T00:00:00');
@@ -835,6 +950,7 @@ class TimeTrackerApp {
             this.els.sessionDate.textContent = `📅 ${formatted}`;
             this.els.sessionDate.classList.add('past-session');
             this.els.newSessionBtn.classList.remove('hidden');
+            this.els.nextDayBtn.disabled = false;  // Can navigate forward
         }
     }
     

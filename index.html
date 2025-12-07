@@ -25,7 +25,15 @@
                 </button>
             </div>
             <div class="session-info">
-                <span id="sessionDate" class="session-date" title="Click to pick a date">Today</span>
+                <div class="date-nav">
+                    <button id="prevDayBtn" class="btn-date-nav" title="Previous day (←)">
+                        <span>◀</span>
+                    </button>
+                    <span id="sessionDate" class="session-date" title="Click to pick a date">Today</span>
+                    <button id="nextDayBtn" class="btn-date-nav" title="Next day (→)">
+                        <span>▶</span>
+                    </button>
+                </div>
                 <input type="date" id="sessionDatePicker" style="visibility: hidden; position: absolute; width: 0; height: 0;">
                 <button id="newSessionBtn" class="btn btn-new-session hidden" title="Switch back to today's session">
                     📅 Switch to Today
@@ -102,6 +110,18 @@
                                 <div class="edit-actions">
                                     <button id="confirmCancelBtn" class="btn btn-secondary">Cancel</button>
                                     <button id="confirmOkBtn" class="btn btn-primary">Confirm</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rename Modal -->
+                        <div id="renameModal" class="confirm-modal hidden">
+                            <div class="confirm-content glass-card">
+                                <h3 style="margin-bottom: 12px; font-size: 1.2rem;">Rename Task</h3>
+                                <input type="text" id="renameInput" class="task-input" style="width: 100%; margin-bottom: 24px;" placeholder="Task name">
+                                <div class="edit-actions">
+                                    <button id="renameCancelBtn" class="btn btn-secondary">Cancel</button>
+                                    <button id="renameConfirmBtn" class="btn btn-primary">Rename</button>
                                 </div>
                             </div>
                         </div>
