@@ -2,6 +2,8 @@
 
 A modern, feature-rich time tracking application with keyboard shortcuts, data synchronization, and session management.
 
+📖 **[User Guide](USER_GUIDE.md)** - Complete documentation for all features
+
 ## Features
 
 - ⏱️ **Auto-Save Workflow**: Tasks automatically save when you start/stop the timer
