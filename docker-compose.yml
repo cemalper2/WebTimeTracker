@@ -1,9 +1,28 @@
 version: '3.8'
 
 services:
-  time-tracker:
+  # Frontend static file server
+  web:
     build: .
     ports:
       - "8081:80"
     restart: unless-stopped
-    container_name: time-tracker-app
+    container_name: time-tracker-web
+    depends_on:
+      - api
+
+  # Python sync API server
+  api:
+    build: ./server
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    container_name: time-tracker-api
+    environment:
+      - FLASK_ENV=development
+      - DATABASE_PATH=/data/tasks.db
+    volumes:
+      - api-data:/data
+
+volumes:
+  api-data:

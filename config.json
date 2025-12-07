@@ -1,0 +1,4 @@
+{
+  "syncServerUrl": "http://localhost:5000",
+  "syncEnabled": true
+}

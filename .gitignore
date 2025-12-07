@@ -1,8 +1,12 @@
 # Dependencies
 node_modules/
+server/venv/
 
 # Test coverage
 coverage/
+
+# Database
+*.db
 
 # OS files
 .DS_Store
