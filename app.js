@@ -90,9 +90,34 @@ class TimeTrackerApp {
     
     initTimer() {
         this.timer = new Timer({
-            onTick: (seconds) => this.updateTimerDisplay(seconds),
+            onTick: (seconds) => {
+                this.updateTimerDisplay(seconds);
+                // Auto-save every second to prevent data loss on browser crash
+                this.autoSaveDuration(seconds);
+            },
             onStateChange: (state) => this.handleTimerStateChange(state)
         });
+    }
+    
+    /**
+     * Auto-save the current timer duration to IndexedDB
+     * Called every second while timer is running
+     * @param {number} seconds - Current timer value
+     */
+    async autoSaveDuration(seconds) {
+        // Only save if there's an active task
+        if (!this.activeTaskId) return;
+        
+        try {
+            // Direct update to storage without reloading task list (performance)
+            await storage.updateTask(this.activeTaskId, { 
+                duration: seconds,
+                updatedAt: Date.now()
+            });
+        } catch (error) {
+            // Silently fail - don't interrupt timer for save errors
+            console.warn('[AutoSave] Failed to save duration:', error);
+        }
     }
     
     initTaskEntry() {
