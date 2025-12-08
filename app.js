@@ -148,7 +148,7 @@ class TimeTrackerApp {
         if (!this.els.totalTime) return;
         
         try {
-            const tasks = await storage.getTasksByDate(this.currentSessionDate);
+            const tasks = await storage.getTasksByDate(this.sessionDate);
             const totalSeconds = tasks.reduce((sum, t) => sum + (t.duration || 0), 0);
             this.els.totalTime.textContent = formatDuration(totalSeconds);
         } catch (error) {
