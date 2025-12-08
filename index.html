@@ -49,108 +49,16 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <!-- Timer Section -->
-            <section class="timer-section">
-                <div class="timer-card glass-card">
-                    <!-- Task Input with Autocomplete -->
-                    <div class="task-input-container">
-                        <label for="taskName" class="input-label">What are you working on?</label>
-                        <div class="autocomplete-wrapper">
-                            <input 
-                                type="text" 
-                                id="taskName" 
-                                class="task-input" 
-                                placeholder="Enter task name..."
-                                autocomplete="off"
-                            >
-                            <div id="suggestions" class="suggestions-dropdown hidden"></div>
-                        </div>
-                    </div>
-
-                    <!-- Timer Display -->
-                    <div class="timer-display-container">
-                        <div id="timerDisplay" class="timer-display" title="Click to edit time">
-                            <span class="time-segment" id="hours">00</span>
-                            <span class="time-separator">:</span>
-                            <span class="time-segment" id="minutes">00</span>
-                            <span class="time-separator">:</span>
-                            <span class="time-segment" id="seconds">00</span>
-                        </div>
-                        <!-- Manual Time Edit Modal -->
-                        <div id="timeEditModal" class="time-edit-modal hidden">
-                            <div class="time-edit-content glass-card">
-                                <h3>Edit Time</h3>
-                                <div class="time-input-single">
-                                    <input type="text" id="editTimeInput" placeholder="00:00:00" autocomplete="off">
-                                    <span class="time-hint">Format: HH:MM:SS or MM:SS</span>
-                                </div>
-                                <div class="edit-actions">
-                                    <button id="cancelEdit" class="btn btn-secondary">Cancel</button>
-                                    <button id="confirmEdit" class="btn btn-primary">Apply</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                        <!-- Custom Confirm Modal -->
-                        <div id="confirmModal" class="confirm-modal hidden">
-                            <div class="confirm-content glass-card">
-                                <h3 id="confirmTitle" style="margin-bottom: 12px; font-size: 1.2rem;">Are you sure?</h3>
-                                <p id="confirmMessage" style="color: var(--color-text-secondary); margin-bottom: 24px; white-space: pre-line;"></p>
-                                <div class="edit-actions">
-                                    <button id="confirmCancelBtn" class="btn btn-secondary">Cancel</button>
-                                    <button id="confirmOkBtn" class="btn btn-primary">Confirm</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Rename Modal -->
-                        <div id="renameModal" class="confirm-modal hidden">
-                            <div class="confirm-content glass-card">
-                                <h3 style="margin-bottom: 12px; font-size: 1.2rem;">Rename Task</h3>
-                                <input type="text" id="renameInput" class="task-input" style="width: 100%; margin-bottom: 24px;" placeholder="Task name">
-                                <div class="edit-actions">
-                                    <button id="renameCancelBtn" class="btn btn-secondary">Cancel</button>
-                                    <button id="renameConfirmBtn" class="btn btn-primary">Rename</button>
-                                </div>
-                            </div>
-                        </div>
-
-                    <!-- Timer Controls -->
-                    <div class="timer-controls">
-                        <button id="startBtn" class="btn btn-start">
-                            <span class="btn-icon">▶</span>
-                            <span>Start</span>
-                        </button>
-                        <button id="stopBtn" class="btn btn-stop hidden">
-                            <span class="btn-icon">⏸</span>
-                            <span>Pause</span>
-                        </button>
-                        <button id="resetBtn" class="btn btn-reset">
-                            <span class="btn-icon">↺</span>
-                            <span>Reset</span>
-                        </button>
-                        <button id="newTaskBtn" class="btn btn-save" title="Save current task and start a new one">
-                            <span class="btn-icon">➕</span>
-                            <span>New Task</span>
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Task History Section -->
-            <section class="history-section">
-                <div class="history-header">
-                    <h2>📋 Task History</h2>
-                    <div class="history-actions">
+            <!-- Task List Section (formerly History) -->
+            <section class="task-list-section">
+                <div class="task-list-header">
+                    <h2>📋 Tasks</h2>
+                    <div class="task-list-actions">
                         <button id="exportBtn" class="btn btn-icon-text" title="Export tasks for current day">
-                            <span>📤</span> Export Current Day
+                            <span>📤</span> Export
                         </button>
                         <button id="exportAllBtn" class="btn btn-icon-text" title="Export ALL tasks (backup)">
-                            <span>📦</span> Export All
-                        </button>
-                        <button id="clearDataBtn" class="btn btn-icon-text" title="Delete LOCAL data only (Server data persists)" style="color: var(--color-danger); border-color: var(--color-danger);">
-                            <span>🗑️</span> Clear Local Data
+                            <span>📦</span> Backup
                         </button>
                         <button id="importBtn" class="btn btn-icon-text" title="Import tasks from file">
                             <span>📥</span> Import
@@ -158,19 +66,86 @@
                         <input type="file" id="importFile" accept=".json" style="display: none;">
                     </div>
                 </div>
-                <div class="history-stats">
-                    <span id="totalTasks">0 tasks</span>
-                    <span class="stat-divider">•</span>
-                    <span id="totalTime">0h 0m</span>
-                </div>
-                <div id="taskList" class="task-list">
-                    <div class="empty-state">
-                        <span class="empty-icon">📭</span>
-                        <p>No tasks tracked yet</p>
-                        <p class="empty-hint">Start the timer and save your first task!</p>
+                
+                <!-- New Task Input -->
+                <div class="new-task-container glass-card">
+                    <div class="new-task-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="taskName" 
+                            class="task-input" 
+                            placeholder="What are you working on?"
+                            autocomplete="off"
+                        >
+                        <div id="suggestions" class="suggestions-dropdown hidden"></div>
                     </div>
+                    <button id="addTaskBtn" class="btn btn-primary btn-add-task" title="Add new task">
+                        <span>➕</span> Add Task
+                    </button>
+                </div>
+
+                <!-- Task Stats -->
+                <div class="task-stats">
+                    <span class="stat-item">
+                        <span class="stat-label">Tasks:</span>
+                        <span id="totalTasks" class="stat-value">0</span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-label">Total Time:</span>
+                        <span id="totalTime" class="stat-value">0m</span>
+                    </span>
+                </div>
+
+                <!-- Task List -->
+                <div id="taskList" class="task-list"></div>
+                
+                <!-- Clear Data Button (moved to bottom) -->
+                <div class="danger-zone">
+                    <button id="clearDataBtn" class="btn btn-danger-outline" title="Delete LOCAL data only">
+                        <span>🗑️</span> Clear Local Data
+                    </button>
                 </div>
             </section>
+
+            <!-- Modals (kept as overlays) -->
+            <!-- Time Edit Modal -->
+            <div id="timeEditModal" class="time-edit-modal hidden">
+                <div class="time-edit-content glass-card">
+                    <h3>Edit Time</h3>
+                    <div class="time-input-single">
+                        <input type="text" id="editTimeInput" placeholder="00:00:00" autocomplete="off">
+                        <span class="time-hint">Format: HH:MM:SS or MM:SS</span>
+                    </div>
+                    <div class="edit-actions">
+                        <button id="cancelEdit" class="btn btn-secondary">Cancel</button>
+                        <button id="confirmEdit" class="btn btn-primary">Apply</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Confirm Modal -->
+            <div id="confirmModal" class="confirm-modal hidden">
+                <div class="confirm-content glass-card">
+                    <h3 id="confirmTitle" style="margin-bottom: 12px; font-size: 1.2rem;">Are you sure?</h3>
+                    <p id="confirmMessage" style="color: var(--color-text-secondary); margin-bottom: 24px; white-space: pre-line;"></p>
+                    <div class="edit-actions">
+                        <button id="confirmCancelBtn" class="btn btn-secondary">Cancel</button>
+                        <button id="confirmOkBtn" class="btn btn-primary">Confirm</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rename Modal -->
+            <div id="renameModal" class="confirm-modal hidden">
+                <div class="confirm-content glass-card">
+                    <h3 style="margin-bottom: 12px; font-size: 1.2rem;">Rename Task</h3>
+                    <input type="text" id="renameInput" class="task-input" style="width: 100%; margin-bottom: 24px;" placeholder="Task name">
+                    <div class="edit-actions">
+                        <button id="renameCancelBtn" class="btn btn-secondary">Cancel</button>
+                        <button id="renameConfirmBtn" class="btn btn-primary">Rename</button>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <!-- Footer -->

@@ -38,21 +38,15 @@ class TimeTrackerApp {
     
     cacheElements() {
         this.els = {
-            hours: document.getElementById('hours'),
-            minutes: document.getElementById('minutes'),
-            seconds: document.getElementById('seconds'),
-            timerDisplay: document.getElementById('timerDisplay'),
-            startBtn: document.getElementById('startBtn'),
-            stopBtn: document.getElementById('stopBtn'),
-            resetBtn: document.getElementById('resetBtn'),
-            stopBtn: document.getElementById('stopBtn'),
-            resetBtn: document.getElementById('resetBtn'),
-            newTaskBtn: document.getElementById('newTaskBtn'),
+            // Task List Elements
             taskName: document.getElementById('taskName'),
             suggestions: document.getElementById('suggestions'),
+            addTaskBtn: document.getElementById('addTaskBtn'),
             taskListContainer: document.getElementById('taskList'),
             totalTasks: document.getElementById('totalTasks'),
             totalTime: document.getElementById('totalTime'),
+            
+            // Modals
             timeEditModal: document.getElementById('timeEditModal'),
             editTimeInput: document.getElementById('editTimeInput'),
             cancelEdit: document.getElementById('cancelEdit'),
@@ -96,8 +90,7 @@ class TimeTrackerApp {
     initTimer() {
         this.timer = new Timer({
             onTick: (seconds) => {
-                this.updateTimerDisplay(seconds);
-                // Auto-save every second to prevent data loss on browser crash
+                // Auto-save and update UI every second
                 this.autoSaveDuration(seconds);
             },
             onStateChange: (state) => this.handleTimerStateChange(state)
@@ -175,7 +168,8 @@ class TimeTrackerApp {
         this.taskList = new TaskList({
             container: this.els.taskListContainer,
             onDelete: (id) => this.deleteTask(id),
-            onResume: (id) => this.resumeTask(id),
+            onStart: (id) => this.startTaskTimer(id),
+            onStop: (id) => this.stopTaskTimer(id),
             onEdit: (id) => this.editTaskDuration(id),
             onSync: (id, direction) => this.syncTask(id, direction),
             onRename: (id) => this.openRenameModal(id),
@@ -187,12 +181,18 @@ class TimeTrackerApp {
     }
     
     bindEvents() {
-        this.els.startBtn.addEventListener('click', () => this.timer.start());
-        this.els.stopBtn.addEventListener('click', () => this.timer.stop());
-        this.els.resetBtn.addEventListener('click', () => this.timer.reset());
-        this.els.newTaskBtn.addEventListener('click', () => this.startNewTask());
-        this.els.taskName.addEventListener('input', (e) => this.handleTaskNameChange(e.target.value));
-        this.els.timerDisplay.addEventListener('click', () => this.openTimeEditModal());
+        // Add Task button
+        this.els.addTaskBtn.addEventListener('click', () => this.addNewTask());
+        
+        // Enter key in task input also adds task
+        this.els.taskName.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.addNewTask();
+            }
+        });
+        
+        // Modal event handlers
         this.els.cancelEdit.addEventListener('click', () => this.closeTimeEditModal());
         this.els.confirmEdit.addEventListener('click', () => this.applyTimeEdit());
         this.els.timeEditModal.addEventListener('click', (e) => {
@@ -208,10 +208,13 @@ class TimeTrackerApp {
             if (!isInput) {
                 if (e.code === 'Space') {
                     e.preventDefault(); // Prevent page scroll
-                    if (this.timer.getIsRunning()) {
-                        this.timer.stop();
-                    } else {
-                        this.timer.start();
+                    // Toggle active task timer
+                    if (this.activeTaskId) {
+                        if (this.timer.getIsRunning()) {
+                            this.stopTaskTimer(this.activeTaskId);
+                        } else {
+                            this.startTaskTimer(this.activeTaskId);
+                        }
                     }
                 } else if (e.code === 'ArrowLeft') {
                     e.preventDefault();
@@ -753,23 +756,106 @@ class TimeTrackerApp {
          } catch (e) { return this.timerLogs; }
     }
     
-    async resumeTask(id) {
+    /**
+     * Add a new task from the input field
+     */
+    async addNewTask() {
+        const name = this.els.taskName.value.trim();
+        if (!name) {
+            this.showToast('Please enter a task name', 'error');
+            this.els.taskName.focus();
+            return;
+        }
+        
+        const now = new Date();
+        const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const currentSession = localStorage.getItem('timetracker-session-date') || today;
+        
+        const task = {
+            id: generateId(),
+            name,
+            duration: 0,
+            createdAt: Date.now(),
+            sessionDate: currentSession,
+            timerLogs: [],
+            updatedAt: Date.now()
+        };
+        
+        await storage.saveTask(task);
+        this.els.taskName.value = '';
+        await this.loadTasks();
+        
+        // Automatically start the new task
+        this.startTaskTimer(task.id);
+        this.showToast('Task added and started!', 'success');
+    }
+    
+    /**
+     * Start timer on a specific task
+     * @param {string} id - Task ID to start
+     */
+    async startTaskTimer(id) {
         try {
-            // Auto-save current if active
-            if (this.activeTaskId && this.timer.getIsRunning()) {
-                this.timer.stop();
+            // Stop current task if different
+            if (this.activeTaskId && this.activeTaskId !== id) {
+                await this.stopTaskTimer(this.activeTaskId);
             }
-
+            
             const task = await storage.getTask(id);
             if (!task) { this.showToast('Task not found', 'error'); return; }
             
             this.activeTaskId = id;
-            this.taskEntry.inputElement.value = task.name;
+            this.timerLogs.push({
+                event: 'start',
+                timestamp: new Date().toISOString(),
+                elapsedSeconds: task.duration
+            });
+            
             this.timer.setTime(task.duration);
-            this.showToast('Task resumed - continue timing!', 'success');
+            this.timer.start();
+            
+            // Update task list to show active state
+            this.taskList.setActiveTask(id);
+            await this.loadTasks();
         } catch (error) {
-            console.error('Resume failed:', error);
-            this.showToast('Failed to resume task', 'error');
+            console.error('Start task failed:', error);
+            this.showToast('Failed to start task', 'error');
+        }
+    }
+    
+    /**
+     * Stop timer on a specific task
+     * @param {string} id - Task ID to stop
+     */
+    async stopTaskTimer(id) {
+        try {
+            if (this.activeTaskId !== id) return;
+            
+            this.timer.stop();
+            
+            this.timerLogs.push({
+                event: 'stop',
+                timestamp: new Date().toISOString(),
+                elapsedSeconds: this.timer.getTime()
+            });
+            
+            // Merge and save timer logs
+            const mergedLogs = await this.mergeTimerLogs(id);
+            await storage.updateTask(id, {
+                duration: this.timer.getTime(),
+                timerLogs: mergedLogs,
+                updatedAt: Date.now()
+            });
+            
+            this.timerLogs = [];
+            this.activeTaskId = null;
+            
+            // Update task list to remove active state
+            this.taskList.setActiveTask(null);
+            await this.loadTasks();
+        } catch (error) {
+            console.error('Stop task failed:', error);
+            this.showToast('Failed to stop task', 'error');
         }
     }
     
