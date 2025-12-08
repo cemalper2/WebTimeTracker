@@ -102,6 +102,7 @@ class TimeTrackerApp {
     /**
      * Auto-save the current timer duration to IndexedDB
      * Called every second while timer is running
+     * Also updates the UI in real-time
      * @param {number} seconds - Current timer value
      */
     async autoSaveDuration(seconds) {
@@ -114,9 +115,46 @@ class TimeTrackerApp {
                 duration: seconds,
                 updatedAt: Date.now()
             });
+            
+            // Update the history list item in real-time
+            this.updateTaskItemUI(this.activeTaskId, seconds);
+            
+            // Update the total time display
+            this.updateTotalTimeUI();
         } catch (error) {
             // Silently fail - don't interrupt timer for save errors
             console.warn('[AutoSave] Failed to save duration:', error);
+        }
+    }
+    
+    /**
+     * Update a specific task item's duration in the UI without full reload
+     * @param {string} taskId - Task ID to update
+     * @param {number} seconds - New duration in seconds
+     */
+    updateTaskItemUI(taskId, seconds) {
+        const taskItem = this.els.taskListContainer?.querySelector(`[data-id="${taskId}"]`);
+        if (!taskItem) return;
+        
+        const timeEl = taskItem.querySelector('.task-time');
+        if (timeEl) {
+            const time = formatTime(seconds);
+            timeEl.textContent = time.formatted;
+        }
+    }
+    
+    /**
+     * Update the total time display without full reload
+     */
+    async updateTotalTimeUI() {
+        if (!this.els.totalTime) return;
+        
+        try {
+            const tasks = await storage.getTasksByDate(this.currentSessionDate);
+            const totalSeconds = tasks.reduce((sum, t) => sum + (t.duration || 0), 0);
+            this.els.totalTime.textContent = formatDuration(totalSeconds);
+        } catch (error) {
+            // Silently fail
         }
     }
     
