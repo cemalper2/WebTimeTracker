@@ -224,9 +224,14 @@ def clear_tasks():
     return jsonify({'message': f'Cleared {result.rowcount} tasks'})
 
 
-if __name__ == '__main__':
+# Initialize database on module load (for gunicorn)
+with app.app_context():
     init_db()
+
+
+if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
     print(f"Starting Time Tracker API on port {port}")
     app.run(host='0.0.0.0', port=port, debug=debug)
+
