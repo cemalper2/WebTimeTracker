@@ -38,18 +38,16 @@ export function parseTime(timeString) {
 }
 
 /**
- * Format seconds to human readable duration (e.g., "2h 30m")
+ * Format seconds to duration with seconds (e.g., "02:30:15")
  * @param {number} totalSeconds - Total seconds
- * @returns {string} Human readable duration
+ * @returns {string} Duration in HH:MM:SS format
  */
 export function formatDuration(totalSeconds) {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
     
-    if (hours === 0) {
-        return `${minutes}m`;
-    }
-    return `${hours}h ${minutes}m`;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 /**

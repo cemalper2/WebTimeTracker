@@ -76,25 +76,26 @@ describe('parseTime', () => {
 });
 
 describe('formatDuration', () => {
-    test('formats 0 seconds as 0m', () => {
-        expect(formatDuration(0)).toBe('0m');
+    test('formats 0 seconds correctly', () => {
+        expect(formatDuration(0)).toBe('00:00:00');
     });
 
     test('formats minutes only (less than 1 hour)', () => {
-        expect(formatDuration(300)).toBe('5m');
-        expect(formatDuration(1800)).toBe('30m');
-        expect(formatDuration(3599)).toBe('59m');
+        expect(formatDuration(300)).toBe('00:05:00');
+        expect(formatDuration(1800)).toBe('00:30:00');
+        expect(formatDuration(3599)).toBe('00:59:59');
     });
 
     test('formats hours and minutes', () => {
-        expect(formatDuration(3600)).toBe('1h 0m');
-        expect(formatDuration(5400)).toBe('1h 30m');
-        expect(formatDuration(7200)).toBe('2h 0m');
+        expect(formatDuration(3600)).toBe('01:00:00');
+        expect(formatDuration(5400)).toBe('01:30:00');
+        expect(formatDuration(7200)).toBe('02:00:00');
     });
 
-    test('rounds down partial minutes', () => {
-        expect(formatDuration(90)).toBe('1m');
-        expect(formatDuration(119)).toBe('1m');
+    test('includes seconds', () => {
+        expect(formatDuration(90)).toBe('00:01:30');
+        expect(formatDuration(119)).toBe('00:01:59');
+        expect(formatDuration(3661)).toBe('01:01:01');
     });
 });
 
