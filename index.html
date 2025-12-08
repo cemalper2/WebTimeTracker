@@ -20,9 +20,14 @@
                     <h1>TimeTracker</h1>
                 </div>
 
-                <button id="themeToggle" class="theme-toggle" title="Toggle dark/light mode">
-                    <span class="theme-icon">🌙</span>
-                </button>
+                <div class="header-actions">
+                    <button id="helpBtn" class="btn-icon" title="Help & Guide">
+                        <span>❓</span>
+                    </button>
+                    <button id="themeToggle" class="theme-toggle" title="Toggle dark/light mode">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                </div>
             </div>
             <div class="session-info">
                 <div class="date-nav">
@@ -207,6 +212,51 @@
                 <div id="detailTimeline" class="detail-timeline">
                     <div class="empty-timeline">No events recorded</div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal-overlay hidden">
+        <div class="help-modal glass-card">
+            <div class="help-header">
+                <h2>📖 Quick Guide</h2>
+                <button id="closeHelpBtn" class="btn-close">✕</button>
+            </div>
+            <div class="help-content">
+                <section class="help-section">
+                    <h3>⏱️ Timer Basics</h3>
+                    <ul>
+                        <li><strong>Start:</strong> Enter task name, click <kbd>▶ Start</kbd> or press <kbd>Space</kbd></li>
+                        <li><strong>Pause:</strong> Click <kbd>⏸ Pause</kbd> or press <kbd>Space</kbd></li>
+                        <li><strong>Edit time:</strong> Click on the timer display</li>
+                    </ul>
+                </section>
+                <section class="help-section">
+                    <h3>⌨️ Keyboard Shortcuts</h3>
+                    <ul>
+                        <li><kbd>Space</kbd> — Start/Pause timer</li>
+                        <li><kbd>←</kbd> / <kbd>→</kbd> — Navigate days</li>
+                        <li><kbd>Esc</kbd> — Close modals</li>
+                    </ul>
+                </section>
+                <section class="help-section">
+                    <h3>📝 Task History</h3>
+                    <ul>
+                        <li><strong>Resume:</strong> Click any task in history</li>
+                        <li><strong>Edit name:</strong> Double-click task name</li>
+                        <li><strong>Edit time:</strong> Double-click task duration</li>
+                        <li><strong>Details:</strong> Click ℹ️ for event timeline</li>
+                    </ul>
+                </section>
+                <section class="help-section">
+                    <h3>💾 Data Management</h3>
+                    <ul>
+                        <li>Data auto-saves every second</li>
+                        <li>Use Export/Import for backups</li>
+                        <li>Stored in browser (IndexedDB)</li>
+                    </ul>
+                </section>
             </div>
         </div>
     </div>

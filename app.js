@@ -84,7 +84,12 @@ class TimeTrackerApp {
             renameModal: document.getElementById('renameModal'),
             renameInput: document.getElementById('renameInput'),
             renameConfirmBtn: document.getElementById('renameConfirmBtn'),
-            renameCancelBtn: document.getElementById('renameCancelBtn')
+            renameCancelBtn: document.getElementById('renameCancelBtn'),
+            
+            // Help Modal
+            helpBtn: document.getElementById('helpBtn'),
+            helpModal: document.getElementById('helpModal'),
+            closeHelpBtn: document.getElementById('closeHelpBtn')
         };
     }
     
@@ -225,6 +230,13 @@ class TimeTrackerApp {
         this.els.themeToggle.addEventListener('click', () => this.toggleTheme());
         this.els.clearDataBtn.addEventListener('click', () => this.clearAllData());
         
+        // Help Modal
+        this.els.helpBtn.addEventListener('click', () => this.openHelpModal());
+        this.els.closeHelpBtn.addEventListener('click', () => this.closeHelpModal());
+        this.els.helpModal.addEventListener('click', (e) => {
+            if (e.target === this.els.helpModal) this.closeHelpModal();
+        });
+        
         // Date Navigation Buttons
         this.els.prevDayBtn.addEventListener('click', () => this.changeSessionDate(-1));
         this.els.nextDayBtn.addEventListener('click', () => this.changeSessionDate(1));
@@ -293,6 +305,14 @@ class TimeTrackerApp {
     
     updateThemeIcon(theme) {
         this.els.themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
+    
+    openHelpModal() {
+        this.els.helpModal.classList.remove('hidden');
+    }
+    
+    closeHelpModal() {
+        this.els.helpModal.classList.add('hidden');
     }
     
     updateTimerDisplay(seconds) {
