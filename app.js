@@ -333,20 +333,15 @@ class TimeTrackerApp {
             elapsedSeconds: this.timer.getTime()
         });
         
+        // Update tab icon and title based on timer state
+        this.updateTabIndicator(state);
+        
         if (state === 'running') {
-            this.els.startBtn.classList.add('hidden');
-            this.els.stopBtn.classList.remove('hidden');
-            this.els.timerDisplay.classList.add('running');
-            
             // Auto-Create Task on Start if not exists
             if (!this.activeTaskId) {
                 await this.createAutoSaveTask();
             }
         } else {
-            this.els.startBtn.classList.remove('hidden');
-            this.els.stopBtn.classList.add('hidden');
-            this.els.timerDisplay.classList.remove('running');
-            
             // Auto-Update Task on Stop
             if (this.activeTaskId) {
                  const mergedLogs = await this.mergeTimerLogs(this.activeTaskId);
@@ -357,6 +352,54 @@ class TimeTrackerApp {
                  this.timerLogs = []; // Clear current logs after sync
             }
         }
+    }
+    
+    /**
+     * Update browser tab title and favicon based on timer state
+     * @param {string} state - 'running', 'stopped', or null for idle
+     */
+    updateTabIndicator(state) {
+        const baseTitle = 'Time Tracker';
+        let favicon = '⏱️'; // default
+        
+        if (state === 'running') {
+            document.title = `▶️ ${baseTitle} - Running`;
+            favicon = '▶️';
+        } else if (this.activeTaskId) {
+            document.title = `⏸️ ${baseTitle} - Paused`;
+            favicon = '⏸️';
+        } else {
+            document.title = baseTitle;
+            favicon = '⏱️';
+        }
+        
+        // Update emoji favicon
+        this.setEmojiFavicon(favicon);
+    }
+    
+    /**
+     * Set an emoji as the favicon using canvas
+     * @param {string} emoji - Emoji to use as favicon
+     */
+    setEmojiFavicon(emoji) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        ctx.font = '28px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(emoji, 16, 18);
+        
+        // Update or create favicon link
+        let link = document.querySelector("link[rel*='icon']");
+        if (!link) {
+            link = document.createElement('link');
+            link.type = 'image/x-icon';
+            link.rel = 'shortcut icon';
+            document.head.appendChild(link);
+        }
+        link.href = canvas.toDataURL();
     }
     
     openTimeEditModal() {
