@@ -1279,14 +1279,17 @@ class TimeTrackerApp {
         this.sessionDate = newDateString;
         localStorage.setItem('timetracker-session-date', newDateString);
         
-        // Reset timer state for new session
-        if (this.timer.getIsRunning()) {
-            this.timer.stop();
+        // Gracefully stop and save the active task before switching dates
+        if (this.activeTaskId && this.timer.getIsRunning()) {
+            await this.stopTaskTimer(this.activeTaskId);
+            this.showToast('Active timer saved', 'info');
         }
+        
+        // Clear timer state for new session view
         this.timer.reset();
-        this.taskEntry.clear();
         this.activeTaskId = null;
         this.timerLogs = [];
+        this.taskList.setActiveTask(null);
         
         // Update UI
         await this.loadTasks();
