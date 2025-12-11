@@ -278,7 +278,21 @@ class SyncService {
     compareTasks(local, server) {
         if (!server) return 'missing';
 
-        const isDurationMatch = local.duration === server.duration;
+        // Helper to calculate total duration (parent + subtasks)
+        const calculateTotal = (task) => {
+            let total = task.duration || 0;
+            if (task.subtasks) {
+                for (const sub of task.subtasks) {
+                    total += calculateTotal(sub);
+                }
+            }
+            return total;
+        };
+
+        // Local stores parent-only duration, server stores total
+        // Compare totals for consistency
+        const localTotal = calculateTotal(local);
+        const isDurationMatch = localTotal === server.duration;
         const isNameMatch = local.name === server.name;
         
         const localLogs = local.timerLogs || [];
@@ -287,7 +301,7 @@ class SyncService {
 
         const isUpdatedMatch = (!local.updatedAt && !server.updatedAt) || (local.updatedAt === server.updatedAt);
         
-        if (!isDurationMatch) console.log(`[Sync Debug] Duration mismatch: Local=${local.duration} Server=${server.duration}`);
+        if (!isDurationMatch) console.log(`[Sync Debug] Duration mismatch: LocalTotal=${localTotal} Server=${server.duration}`);
         if (!isNameMatch) console.log(`[Sync Debug] Name mismatch: Local=${local.name} Server=${server.name}`);
         if (!isLogsCountMatch) console.log(`[Sync Debug] Logs count mismatch: Local=${localLogs.length} Server=${serverLogs.length}`);
         if (!isUpdatedMatch) console.log(`[Sync Debug] UpdatedAt mismatch: Local=${local.updatedAt} Server=${server.updatedAt} (Diff: ${local.updatedAt - server.updatedAt}ms)`);

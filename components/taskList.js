@@ -54,7 +54,7 @@ export class TaskList {
         const syncIcon = {
             'consistent': '✅',
             'missing': '❌',
-            'inconsistent': '❓'
+            'inconsistent': '⚠️'
         }[task.syncStatus];
         
         const syncTitle = {

@@ -1243,6 +1243,17 @@ class TimeTrackerApp {
                 const task = await storage.getTask(id);
                 if (!task) return;
                 
+                // Calculate total duration (parent + subtasks)
+                const calculateTotal = (t) => {
+                    let total = t.duration || 0;
+                    if (t.subtasks) {
+                        for (const sub of t.subtasks) {
+                            total += calculateTotal(sub);
+                        }
+                    }
+                    return total;
+                };
+                
                 // Sanitize task to remove any runtime helpers or circular references
                 const sanitize = (t) => {
                     const { parent, root, ...clean } = t;
@@ -1253,13 +1264,21 @@ class TimeTrackerApp {
                 };
                 
                 const cleanTask = sanitize(task);
+                // Set total duration for server (includes subtasks)
+                cleanTask.duration = calculateTotal(task);
+                
                 const serverResponse = await syncService.postTask(cleanTask);
                 
                 // CRITICAL: Update local task with server response (especially updatedAt) to ensure consistency
-                // We keep local subtasks if they exist in the original task object, as server response won't have them
+                // BUT: Keep local duration for tasks with subtasks (server has total, local has parent-only)
                 const updatedLocalhelper = { ...task, ...serverResponse };
+                
                 // Restore subtasks which are not in server response
-                if (task.subtasks) updatedLocalhelper.subtasks = task.subtasks;
+                if (task.subtasks && task.subtasks.length > 0) {
+                    updatedLocalhelper.subtasks = task.subtasks;
+                    // IMPORTANT: Keep local parent-only duration, not server's total
+                    updatedLocalhelper.duration = task.duration;
+                }
                 
                 await storage.overwriteTask(updatedLocalhelper);
                 
