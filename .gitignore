@@ -30,3 +30,4 @@ build/
 *.log
 npm-debug.log*
 venv/
+__pycache__/
