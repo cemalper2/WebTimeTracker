@@ -41,6 +41,7 @@ def init_db():
     """Initialize the database schema."""
     with app.app_context():
         db = get_db()
+        # Create tasks table if not exists - now with subtasks and updated_at!
         db.execute('''
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY,
@@ -48,9 +49,22 @@ def init_db():
                 duration INTEGER DEFAULT 0,
                 session_date TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
-                timer_logs TEXT DEFAULT '[]'
+                updated_at INTEGER DEFAULT 0,
+                timer_logs TEXT DEFAULT '[]',
+                subtasks TEXT DEFAULT '[]'
             )
         ''')
+        
+        # Check if subtasks/updated_at column exists (migration for existing DBs)
+        cursor = db.execute("PRAGMA table_info(tasks)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'subtasks' not in columns:
+            print("Migrating database: Adding subtasks column...")
+            db.execute("ALTER TABLE tasks ADD COLUMN subtasks TEXT DEFAULT '[]'")
+        if 'updated_at' not in columns:
+            print("Migrating database: Adding updated_at column...")
+            db.execute("ALTER TABLE tasks ADD COLUMN updated_at INTEGER DEFAULT 0")
+            
         db.commit()
 
 
@@ -64,7 +78,9 @@ def row_to_dict(row):
         'duration': row['duration'],
         'sessionDate': row['session_date'],
         'createdAt': row['created_at'],
-        'timerLogs': json.loads(row['timer_logs']) if row['timer_logs'] else []
+        'updatedAt': row['updated_at'] if 'updated_at' in row.keys() else row['created_at'],
+        'timerLogs': json.loads(row['timer_logs']) if row['timer_logs'] else [],
+        'subtasks': json.loads(row['subtasks']) if row.keys().__contains__('subtasks') and row['subtasks'] else []
     }
 
 
@@ -109,6 +125,8 @@ def create_or_update_task():
     existing = db.execute('SELECT id FROM tasks WHERE id = ?', (data['id'],)).fetchone()
     
     timer_logs = json.dumps(data.get('timerLogs', []))
+    subtasks = json.dumps(data.get('subtasks', []))
+    updated_at = data.get('updatedAt', int(datetime.now().timestamp() * 1000))
     
     if existing:
         # Update existing task
@@ -118,28 +136,34 @@ def create_or_update_task():
                 duration = ?,
                 session_date = ?,
                 created_at = ?,
-                timer_logs = ?
+                updated_at = ?,
+                timer_logs = ?,
+                subtasks = ?
             WHERE id = ?
         ''', (
             data.get('name', 'Untitled'),
             data.get('duration', 0),
             data.get('sessionDate', datetime.now().strftime('%Y-%m-%d')),
             data.get('createdAt', int(datetime.now().timestamp() * 1000)),
+            updated_at,
             timer_logs,
+            subtasks,
             data['id']
         ))
     else:
         # Insert new task
         db.execute('''
-            INSERT INTO tasks (id, name, duration, session_date, created_at, timer_logs)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, name, duration, session_date, created_at, updated_at, timer_logs, subtasks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['id'],
             data.get('name', 'Untitled'),
             data.get('duration', 0),
             data.get('sessionDate', datetime.now().strftime('%Y-%m-%d')),
             data.get('createdAt', int(datetime.now().timestamp() * 1000)),
-            timer_logs
+            updated_at,
+            timer_logs,
+            subtasks
         ))
     
     db.commit()
@@ -205,9 +229,9 @@ def seed_tasks():
             created_at = int((date - timedelta(hours=i)).timestamp() * 1000)
             
             db.execute('''
-                INSERT OR REPLACE INTO tasks (id, name, duration, session_date, created_at, timer_logs)
-                VALUES (?, ?, ?, ?, ?, '[]')
-            ''', (task_id, name, duration, date_str, created_at))
+                INSERT OR REPLACE INTO tasks (id, name, duration, session_date, created_at, updated_at, timer_logs, subtasks)
+                VALUES (?, ?, ?, ?, ?, ?, '[]', '[]')
+            ''', (task_id, name, duration, date_str, created_at, created_at))
             tasks_created += 1
     
     db.commit()
@@ -223,15 +247,12 @@ def clear_tasks():
     db.commit()
     return jsonify({'message': f'Cleared {result.rowcount} tasks'})
 
-
-# Initialize database on module load (for gunicorn)
+# Initialize DB on module load (ensures migration runs in Gunicorn)
 with app.app_context():
     init_db()
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
     print(f"Starting Time Tracker API on port {port}")
     app.run(host='0.0.0.0', port=port, debug=debug)
-

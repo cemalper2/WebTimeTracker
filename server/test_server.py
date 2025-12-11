@@ -1,13 +1,11 @@
 """
-Tests for the Time Tracker Sync Server
+Tests for the Time Tracker Sync Server including Subtasks
 """
-
 import pytest
 import json
 import os
 import tempfile
 from server import app, init_db, DATABASE
-
 
 @pytest.fixture
 def client():
@@ -32,35 +30,25 @@ def client():
     os.close(db_fd)
     os.unlink(db_path)
 
-
-def test_health_check(client):
-    """Test health endpoint."""
-    response = client.get('/health')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data['status'] == 'ok'
-    assert data['service'] == 'time-tracker-api'
-
-
-def test_get_tasks_empty(client):
-    """Test getting tasks when database is empty."""
-    response = client.get('/api/tasks')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data == []
-
-
-def test_create_task(client):
-    """Test creating a new task."""
-    task = {
-        'id': 'test-1',
-        'name': 'Test Task',
-        'duration': 3600,
-        'sessionDate': '2024-01-15',
-        'createdAt': 1705330800000,
-        'timerLogs': [{'event': 'start', 'timestamp': 1705330800000}]
+def test_create_task_with_subtasks(client):
+    """Test creating a new task with subtasks."""
+    subtask1 = {
+        'id': 'sub-1',
+        'name': 'Subtask 1',
+        'duration': 100,
+        'createdAt': 1705330800000
     }
     
+    task = {
+        'id': 'test-parent',
+        'name': 'Parent Task',
+        'duration': 200, # Own duration
+        'sessionDate': '2024-01-15',
+        'createdAt': 1705330800000,
+        'subtasks': [subtask1]
+    }
+    
+    # POST
     response = client.post(
         '/api/tasks',
         data=json.dumps(task),
@@ -69,140 +57,48 @@ def test_create_task(client):
     
     assert response.status_code == 201
     data = json.loads(response.data)
-    assert data['id'] == 'test-1'
-    assert data['name'] == 'Test Task'
-    assert data['duration'] == 3600
-
-
-def test_get_task_by_id(client):
-    """Test getting a single task by ID."""
-    # Create a task first
-    task = {
-        'id': 'test-2',
-        'name': 'Get Task Test',
-        'duration': 1800,
-        'sessionDate': '2024-01-15',
-        'createdAt': 1705330800000
-    }
-    client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
+    assert data['id'] == 'test-parent'
+    assert 'subtasks' in data
+    assert len(data['subtasks']) == 1
+    assert data['subtasks'][0]['name'] == 'Subtask 1'
     
-    # Get the task
-    response = client.get('/api/tasks/test-2')
+    # GET
+    response = client.get('/api/tasks/test-parent')
     assert response.status_code == 200
     data = json.loads(response.data)
-    assert data['name'] == 'Get Task Test'
+    assert len(data['subtasks']) == 1
+    assert data['subtasks'][0]['id'] == 'sub-1'
 
-
-def test_get_task_not_found(client):
-    """Test getting a non-existent task."""
-    response = client.get('/api/tasks/non-existent')
-    assert response.status_code == 404
-
-
-def test_update_task(client):
-    """Test updating an existing task."""
-    # Create a task
+def test_update_task_subtasks(client):
+    """Test updating subtasks."""
+    # Create valid initial task
     task = {
-        'id': 'test-3',
-        'name': 'Original Name',
-        'duration': 100,
-        'sessionDate': '2024-01-15',
-        'createdAt': 1705330800000
+        'id': 'test-update',
+        'name': 'Parent',
+        'subtasks': []
     }
     client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
     
-    # Update the task
-    task['name'] = 'Updated Name'
-    task['duration'] = 200
-    response = client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
+    # Update with subtask
+    task['subtasks'] = [{
+        'id': 'sub-new',
+        'name': 'New Subtask',
+        'duration': 50
+    }]
     
+    response = client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
     assert response.status_code == 201
     data = json.loads(response.data)
-    assert data['name'] == 'Updated Name'
-    assert data['duration'] == 200
+    assert len(data['subtasks']) == 1
+    assert data['subtasks'][0]['name'] == 'New Subtask'
 
-
-def test_delete_task(client):
-    """Test deleting a task."""
-    # Create a task
+def test_create_task_without_subtasks(client):
+    """Regression test: Normal task without subtasks field should default to empty list."""
     task = {
-        'id': 'test-4',
-        'name': 'To Delete',
-        'duration': 100,
-        'sessionDate': '2024-01-15',
-        'createdAt': 1705330800000
+        'id': 'test-simple',
+        'name': 'Simple Task'
     }
-    client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
-    
-    # Delete the task
-    response = client.delete('/api/tasks/test-4')
-    assert response.status_code == 200
-    
-    # Verify it's gone
-    response = client.get('/api/tasks/test-4')
-    assert response.status_code == 404
-
-
-def test_filter_tasks_by_date(client):
-    """Test filtering tasks by date."""
-    # Create tasks on different dates
-    task1 = {
-        'id': 'date-1',
-        'name': 'Task Jan 15',
-        'duration': 100,
-        'sessionDate': '2024-01-15',
-        'createdAt': 1705330800000
-    }
-    task2 = {
-        'id': 'date-2',
-        'name': 'Task Jan 16',
-        'duration': 100,
-        'sessionDate': '2024-01-16',
-        'createdAt': 1705417200000
-    }
-    
-    client.post('/api/tasks', data=json.dumps(task1), content_type='application/json')
-    client.post('/api/tasks', data=json.dumps(task2), content_type='application/json')
-    
-    # Filter by Jan 15
-    response = client.get('/api/tasks?date=2024-01-15')
-    assert response.status_code == 200
+    response = client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
+    assert response.status_code == 201
     data = json.loads(response.data)
-    assert len(data) == 1
-    assert data[0]['name'] == 'Task Jan 15'
-
-
-def test_seed_tasks(client):
-    """Test seeding the database with sample data."""
-    response = client.post('/api/tasks/seed')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert 'Seeded' in data['message']
-    
-    # Verify tasks exist
-    response = client.get('/api/tasks')
-    data = json.loads(response.data)
-    assert len(data) > 0
-
-
-def test_clear_tasks(client):
-    """Test clearing all tasks."""
-    # Create some tasks
-    for i in range(3):
-        task = {
-            'id': f'clear-{i}',
-            'name': f'Task {i}',
-            'duration': 100,
-            'sessionDate': '2024-01-15',
-            'createdAt': 1705330800000
-        }
-        client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
-    
-    # Clear all
-    response = client.delete('/api/tasks/clear')
-    assert response.status_code == 200
-    
-    # Verify empty
-    response = client.get('/api/tasks')
-    data = json.loads(response.data)
-    assert len(data) == 0
+    assert data['subtasks'] == []

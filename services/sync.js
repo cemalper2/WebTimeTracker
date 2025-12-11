@@ -285,7 +285,14 @@ class SyncService {
         const serverLogs = server.timerLogs || [];
         const isLogsCountMatch = localLogs.length === serverLogs.length;
 
-        if (isDurationMatch && isNameMatch && isLogsCountMatch) {
+        const isUpdatedMatch = (!local.updatedAt && !server.updatedAt) || (local.updatedAt === server.updatedAt);
+        
+        if (!isDurationMatch) console.log(`[Sync Debug] Duration mismatch: Local=${local.duration} Server=${server.duration}`);
+        if (!isNameMatch) console.log(`[Sync Debug] Name mismatch: Local=${local.name} Server=${server.name}`);
+        if (!isLogsCountMatch) console.log(`[Sync Debug] Logs count mismatch: Local=${localLogs.length} Server=${serverLogs.length}`);
+        if (!isUpdatedMatch) console.log(`[Sync Debug] UpdatedAt mismatch: Local=${local.updatedAt} Server=${server.updatedAt} (Diff: ${local.updatedAt - server.updatedAt}ms)`);
+
+        if (isDurationMatch && isNameMatch && isLogsCountMatch && isUpdatedMatch) {
             return 'consistent';
         }
         return 'inconsistent';

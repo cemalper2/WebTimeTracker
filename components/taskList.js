@@ -14,7 +14,8 @@ export class TaskList {
         this.onSync = options.onSync || (() => {});
         this.onRename = options.onRename || (() => {});
         this.onDetails = options.onDetails || (() => {});
-        this.activeTaskId = null;  // Currently running task
+        this.onAddSubtask = options.onAddSubtask || (() => {});
+        this.activeTaskId = null;  // Currently running task 
     }
     
     /**
@@ -38,56 +39,90 @@ export class TaskList {
             return;
         }
         
-        this.container.innerHTML = tasks.map(task => {
-            const isActive = task.id === this.activeTaskId;
-            const syncIcon = {
-                'consistent': '✅',
-                'missing': '❌',
-                'inconsistent': '❓'
-            }[task.syncStatus];
-            
-            const syncTitle = {
-                'consistent': 'Synced with server',
-                'missing': 'Missing on server',
-                'inconsistent': 'Data mismatch with server'
-            }[task.syncStatus] || '';
+        this.container.innerHTML = tasks.map(task => this.renderTaskItem(task)).join('');
+        
+        this.attachEventListeners();
+    }
+    
+    renderTaskItem(task, level = 0) {
+        const isActive = task.id === this.activeTaskId;
+        const subtasks = task.subtasks || [];
+        
+        // Duration to show: Own + Subtasks (recursive)
+        const totalDuration = this.calculateTotalDuration(task);
+        
+        const syncIcon = {
+            'consistent': '✅',
+            'missing': '❌',
+            'inconsistent': '❓'
+        }[task.syncStatus];
+        
+        const syncTitle = {
+            'consistent': 'Synced with server',
+            'missing': 'Missing on server',
+            'inconsistent': 'Data mismatch with server'
+        }[task.syncStatus] || '';
 
-            // Start/Stop button based on active state
-            const playStopBtn = isActive 
-                ? `<button class="btn-icon-only stop active-btn" data-action="stop" title="Stop">⏸️</button>`
-                : `<button class="btn-icon-only start" data-action="start" title="Start">▶️</button>`;
+        // Start/Stop button based on active state
+        const playStopBtn = isActive 
+            ? `<button class="btn-icon-only stop active-btn" data-action="stop" title="Stop">⏸️</button>`
+            : `<button class="btn-icon-only start" data-action="start" title="Start">▶️</button>`;
 
-            return `
-            <div class="task-item ${isActive ? 'active' : ''}" data-id="${task.id}">
-                <div class="task-info">
-                    <div class="task-header-row">
-                        <span class="task-name">${this.escapeHtml(task.name)}</span>
-                        ${syncIcon ? `<span class="sync-status" title="${syncTitle}">${syncIcon}</span>` : ''}
-                    </div>
-                    <div class="task-meta">
-                        <span>${formatDate(task.createdAt)}</span>
-                        <span>${formatTimeOfDay(task.createdAt)}</span>
-                    </div>
+        const indentStyle = `style="margin-left: ${level * 20}px; border-left: ${level > 0 ? '2px solid var(--border-color)' : 'none'};"`;
+        const subtaskClass = level > 0 ? 'subtask-item' : '';
+
+        const mainHtml = `
+        <div class="task-item ${isActive ? 'active' : ''} ${subtaskClass}" ${indentStyle} data-id="${task.id}" data-parent-id="${task.parentId || ''}">
+            <div class="task-info">
+                <div class="task-header-row">
+                    <span class="task-name">${this.escapeHtml(task.name)}</span>
+                    ${syncIcon ? `<span class="sync-status" title="${syncTitle}">${syncIcon}</span>` : ''}
                 </div>
-                <span class="task-time">${formatTime(task.duration).formatted}</span>
-                <div class="task-actions">
-                    ${playStopBtn}
-                    ${task.syncStatus === 'inconsistent' 
-                        ? `<div class="sync-actions">
-                             <button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Push to Server">☁️⬆️</button>
-                             <button class="btn-icon-only sync" data-action="sync" data-direction="down" title="Pull from Server">☁️⬇️</button>
-                           </div>`
-                        : (task.syncStatus === 'missing' 
-                            ? `<button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Upload">☁️⬆️</button>`
-                            : '')
-                    }
-                    <button class="btn-icon-only details" data-action="details" title="Details">ℹ️</button>
-                    <button class="btn-icon-only rename" data-action="rename" title="Rename">📝</button>
-                    <button class="btn-icon-only edit" data-action="edit" title="Edit Time">✏️</button>
-                    <button class="btn-icon-only delete" data-action="delete" title="Delete">🗑️</button>
+                <div class="task-meta">
+                    <span>${formatDate(task.createdAt)}</span>
+                    ${level === 0 ? `<span>${formatTimeOfDay(task.createdAt)}</span>` : ''}
                 </div>
             </div>
-        `}).join('');
+            ${(level === 0 && subtasks.length > 0) 
+                ? `<div class="task-time-dual">
+                     <span class="task-time-total" title="Total (Parent + Subtasks)">${formatTime(totalDuration).formatted}</span>
+                     <span class="task-time-own" data-task-id="${task.id}" title="Parent Only - Double-click to edit">(${formatTime(task.duration).formatted})</span>
+                   </div>`
+                : `<span class="task-time" title="Duration">${formatTime(totalDuration).formatted}</span>`
+            }
+            <div class="task-actions">
+                ${playStopBtn}
+                ${level === 0 ? `<button class="btn-icon-only add-sub" data-action="add-sub" title="Add Subtask">➕</button>` : ''}
+                ${(level === 0 && task.syncStatus === 'inconsistent') 
+                    ? `<div class="sync-actions">
+                         <button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Push to Server">☁️⬆️</button>
+                         <button class="btn-icon-only sync" data-action="sync" data-direction="down" title="Pull from Server">☁️⬇️</button>
+                       </div>`
+                    : ((level === 0 && task.syncStatus === 'missing') 
+                        ? `<button class="btn-icon-only sync" data-action="sync" data-direction="up" title="Upload">☁️⬆️</button>`
+                        : '')
+                }
+                <button class="btn-icon-only details" data-action="details" title="Details">ℹ️</button>
+                <button class="btn-icon-only rename" data-action="rename" title="Rename">📝</button>
+                <button class="btn-icon-only edit" data-action="edit" title="Edit Time">✏️</button>
+                <button class="btn-icon-only delete" data-action="delete" title="Delete">🗑️</button>
+            </div>
+        </div>
+        `;
+        
+        const subtasksHtml = subtasks.map(st => this.renderTaskItem({ ...st, parentId: task.id }, level + 1)).join('');
+        
+        return mainHtml + subtasksHtml;
+    }
+
+    calculateTotalDuration(task) {
+        let total = task.duration || 0;
+        if (task.subtasks) {
+            for (const sub of task.subtasks) {
+                total += this.calculateTotalDuration(sub);
+            }
+        }
+        return total;
         
         this.attachEventListeners();
     }
@@ -157,6 +192,15 @@ export class TaskList {
             });
         });
         
+        // Add Subtask button
+        this.container.querySelectorAll('[data-action="add-sub"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.closest('.task-item').dataset.id;
+                this.onAddSubtask(id);
+            });
+        });
+
         // Double-click on task name to rename
         this.container.querySelectorAll('.task-name').forEach(nameEl => {
             nameEl.style.cursor = 'text';
@@ -167,6 +211,17 @@ export class TaskList {
                 this.onRename(id);
             });
             nameEl.addEventListener('click', (e) => e.stopPropagation());
+        });
+        
+        // Double-click on parent-only time to edit duration
+        this.container.querySelectorAll('.task-time-own').forEach(timeEl => {
+            timeEl.style.cursor = 'pointer';
+            timeEl.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const id = timeEl.dataset.taskId;
+                if (id) this.onEdit(id);
+            });
+            timeEl.addEventListener('click', (e) => e.stopPropagation());
         });
         
         // Double-click on task time to edit duration
@@ -191,7 +246,8 @@ export class TaskList {
     updateStats(tasks, totalTasksEl, totalTimeEl) {
         if (!totalTasksEl || !totalTimeEl) return;
         const count = tasks.length;
-        const totalSeconds = tasks.reduce((sum, t) => sum + (t.duration || 0), 0);
+        // For valid total calculation, we need recursive sum here too
+        const totalSeconds = tasks.reduce((sum, t) => sum + this.calculateTotalDuration(t), 0);
         totalTasksEl.textContent = count;
         totalTimeEl.textContent = formatDuration(totalSeconds);
     }
