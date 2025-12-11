@@ -363,10 +363,10 @@ class TimeTrackerApp {
         let favicon = '⏱️'; // default
         
         if (state === 'running') {
-            document.title = `▶️ ${baseTitle} - Running`;
+            document.title = `${baseTitle} - Running`;
             favicon = '▶️';
         } else if (this.activeTaskId) {
-            document.title = `⏸️ ${baseTitle} - Paused`;
+            document.title = `${baseTitle} - Paused`;
             favicon = '⏸️';
         } else {
             document.title = baseTitle;
