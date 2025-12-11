@@ -102,3 +102,82 @@ def test_create_task_without_subtasks(client):
     assert response.status_code == 201
     data = json.loads(response.data)
     assert data['subtasks'] == []
+
+def test_get_task_by_id(client):
+    """Test GET /api/tasks/:id endpoint."""
+    task = {
+        'id': 'test-get',
+        'name': 'Get Test',
+        'duration': 100
+    }
+    client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
+    
+    response = client.get('/api/tasks/test-get')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data['id'] == 'test-get'
+    assert data['name'] == 'Get Test'
+    assert data['duration'] == 100
+
+def test_get_nonexistent_task(client):
+    """Test GET for task that doesn't exist returns 404."""
+    response = client.get('/api/tasks/nonexistent-id')
+    assert response.status_code == 404
+
+def test_delete_task(client):
+    """Test DELETE /api/tasks/:id endpoint."""
+    task = {
+        'id': 'test-delete',
+        'name': 'Delete Me'
+    }
+    client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
+    
+    # Verify it exists
+    response = client.get('/api/tasks/test-delete')
+    assert response.status_code == 200
+    
+    # Delete it
+    response = client.delete('/api/tasks/test-delete')
+    assert response.status_code == 200
+    
+    # Verify it's gone
+    response = client.get('/api/tasks/test-delete')
+    assert response.status_code == 404
+
+def test_updated_at_is_preserved(client):
+    """Test that updatedAt timestamp is saved and returned."""
+    task = {
+        'id': 'test-updated',
+        'name': 'Updated Test',
+        'updatedAt': 1700000000000
+    }
+    response = client.post('/api/tasks', data=json.dumps(task), content_type='application/json')
+    assert response.status_code == 201
+    data = json.loads(response.data)
+    assert data['updatedAt'] == 1700000000000
+    
+    # Verify on GET
+    response = client.get('/api/tasks/test-updated')
+    data = json.loads(response.data)
+    assert data['updatedAt'] == 1700000000000
+
+def test_get_tasks_by_date(client):
+    """Test GET /api/tasks?date=YYYY-MM-DD returns filtered tasks."""
+    task1 = {'id': 't1', 'name': 'Task 1', 'sessionDate': '2024-01-15'}
+    task2 = {'id': 't2', 'name': 'Task 2', 'sessionDate': '2024-01-16'}
+    
+    client.post('/api/tasks', data=json.dumps(task1), content_type='application/json')
+    client.post('/api/tasks', data=json.dumps(task2), content_type='application/json')
+    
+    response = client.get('/api/tasks?date=2024-01-15')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert len(data) == 1
+    assert data[0]['id'] == 't1'
+
+def test_health_check(client):
+    """Test /health endpoint."""
+    response = client.get('/health')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data['status'] == 'ok'
