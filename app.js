@@ -8,7 +8,7 @@ import { TaskList } from './components/taskList.js';
 import { DetailPanel } from './components/detailPanel.js';
 import { storage } from './services/storage.js';
 import { syncService } from './services/sync.js';
-import { formatTime, generateId } from './utils/formatters.js';
+import { formatTime, formatDuration, generateId } from './utils/formatters.js';
 
 class TimeTrackerApp {
     constructor() {
@@ -179,57 +179,84 @@ class TimeTrackerApp {
         const taskItem = this.els.taskListContainer?.querySelector(`[data-id="${taskId}"]`);
         if (!taskItem) return;
         
-        // Update subtask own time
-        const timeEl = taskItem.querySelector('.task-time');
-        if (timeEl) {
-             // For subtasks, duration is just own time. 
-             // Logic in renderTaskItem uses calculateTotalDuration, which handles recursion.
-             // But here we are just updating the text content directly for performance.
-             // If this is a parent, we need to show Total.
-             // Use storage to get fresh total? Or calculate actively?
-             // Fast path: assumes if we are running it, we know the added second.
-             // BUT: if we are running a subtask, the parent's total ALSO changes. as does the root's.
-             // So we need to walk up the DOM and update parents too.
-             
-             // Update self
-             const time = formatTime(seconds);
-             timeEl.textContent = time.formatted;
-             timeEl.title = `Own: ${time.formatted}`;
-             
-             // Walk up to update parents
-             let current = taskItem;
-             while (current.dataset.parentId) {
-                 const parentId = current.dataset.parentId;
-                 const parentItem = this.els.taskListContainer.querySelector(`[data-id="${parentId}"]`);
-                 if (parentItem) {
-                     const pTimeEl = parentItem.querySelector('.task-time');
-                     // We can't easily know parent total without re-calculating whole tree.
-                     // Option: trigger a partial re-render or just loadTasks? 
-                     // loadTasks causes flicker? 
-                     // Let's rely on loadTasks for now? No, autoSaveDuration calls this 1/sec.
-                     // Optimize: Just update the specific task time for now. Parent total lag is acceptable for 1s?
-                     // No, user wants to see total.
-                     // Let's leave it as is (active task updates). Parent totals will update on next load/sync or if we force it.
-                     // Actually, I can't calculate parent total easily here without data.
-                 }
-                 current = parentItem;
-             }
+        const time = formatTime(seconds);
+        
+        // Check for dual timer display (parent task with subtasks)
+        const totalTimeEl = taskItem.querySelector('.task-time-total');
+        const ownTimeEl = taskItem.querySelector('.task-time-own');
+        
+        if (totalTimeEl && ownTimeEl) {
+            // Task has subtasks - read current values BEFORE updating
+            const currentTotalText = totalTimeEl.textContent;
+            const currentOwnText = ownTimeEl.textContent.replace(/[()]/g, '');
+            const currentTotal = this.parseTimeToSeconds(currentTotalText);
+            const currentOwn = this.parseTimeToSeconds(currentOwnText);
+            const subtasksDuration = currentTotal - currentOwn;
+            const newTotal = seconds + subtasksDuration;
+            
+            // Now update the display
+            ownTimeEl.textContent = `(${time.formatted})`;
+            ownTimeEl.title = `Parent Only - Double-click to edit`;
+            totalTimeEl.textContent = formatTime(newTotal).formatted;
+        } else {
+            // Simple task or subtask - update .task-time
+            const timeEl = taskItem.querySelector('.task-time');
+            if (timeEl) {
+                timeEl.textContent = time.formatted;
+                timeEl.title = `Duration`;
+            }
         }
+        
+        // Walk up to update parent totals
+        if (taskItem.dataset.parentId) {
+            const parentId = taskItem.dataset.parentId;
+            const parentItem = this.els.taskListContainer.querySelector(`[data-id="${parentId}"]`);
+            if (parentItem) {
+                const parentTotalEl = parentItem.querySelector('.task-time-total');
+                if (parentTotalEl) {
+                    const currentTotalText = parentTotalEl.textContent;
+                    const currentTotal = this.parseTimeToSeconds(currentTotalText);
+                    const newTotal = currentTotal + 1;
+                    parentTotalEl.textContent = formatTime(newTotal).formatted;
+                }
+            }
+        }
+    }
+    /**
+     * Parses a time string (HH:MM:SS) into total seconds.
+     * @param {string} timeString - The time string to parse.
+     * @returns {number} The total duration in seconds.
+     */
+    parseTimeToSeconds(timeString) {
+        if (!timeString) return 0;
+        
+        // Handle HH:MM:SS format
+        if (timeString.includes(':')) {
+            const parts = timeString.split(':').map(Number);
+            if (parts.length === 3) {
+                return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else if (parts.length === 2) {
+                return parts[0] * 60 + parts[1];
+            }
+        }
+        
+        // Handle other formats like "0m", "5m", "1h 30m" - just return 0 for now
+        // The real value will be set on next loadTasks()
+        return 0;
     }
     
     /**
      * Update the total time display without full reload
+     * Optimized to just increment by 1 second for real-time performance
      */
-    async updateTotalTimeUI() {
+    updateTotalTimeUI() {
         if (!this.els.totalTime) return;
         
-        try {
-            const tasks = await storage.getTasksByDate(this.sessionDate);
-            const totalSeconds = tasks.reduce((sum, t) => sum + (t.duration || 0), 0);
-            this.els.totalTime.textContent = formatDuration(totalSeconds);
-        } catch (error) {
-            // Silently fail
-        }
+        // Fast path: just increment displayed value by 1 second
+        const currentText = this.els.totalTime.textContent;
+        const currentSeconds = this.parseTimeToSeconds(currentText);
+        const newSeconds = currentSeconds + 1;
+        this.els.totalTime.textContent = formatDuration(newSeconds);
     }
     
     initTaskEntry() {
