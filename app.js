@@ -302,6 +302,16 @@ class TimeTrackerApp {
         this.els.timeEditModal.addEventListener('click', (e) => {
             if (e.target === this.els.timeEditModal) this.closeTimeEditModal();
         });
+        
+        // Enter key in time edit modal
+        this.els.editTimeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.applyTimeEdit();
+            } else if (e.key === 'Escape') {
+                this.closeTimeEditModal();
+            }
+        });
 
         // Global Keyboard Shortcuts
         document.addEventListener('keydown', (e) => {

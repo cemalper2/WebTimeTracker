@@ -91,7 +91,97 @@ class TaskApiService {
             return this.fetchFromApi(query);
         }
         
-        return this.searchMockTasks(query);
+        // Merge mock tasks with stored tasks from IndexedDB
+        return this.searchAllTasks(query);
+    }
+    
+    /**
+     * Search both mock tasks and IndexedDB stored tasks
+     * @param {string} query - Search query
+     * @returns {Promise<Array>} Combined results
+     */
+    async searchAllTasks(query) {
+        const lowerQuery = query.toLowerCase();
+        
+        // Get stored tasks from IndexedDB
+        let storedTasks = [];
+        try {
+            // Dynamically import storage to avoid circular dependencies
+            const { storage } = await import('./storage.js');
+            const allStoredTasks = await storage.getAllTasks();
+            
+            // Extract unique task names from stored tasks (including subtasks)
+            const seenNames = new Set();
+            const extractNames = (tasks) => {
+                for (const task of tasks) {
+                    if (!seenNames.has(task.name.toLowerCase())) {
+                        seenNames.add(task.name.toLowerCase());
+                        storedTasks.push({
+                            id: 'stored-' + task.id,
+                            name: task.name,
+                            category: 'Recent'
+                        });
+                    }
+                    if (task.subtasks) {
+                        extractNames(task.subtasks);
+                    }
+                }
+            };
+            extractNames(allStoredTasks);
+        } catch (e) {
+            console.warn('Failed to load stored tasks for autocomplete:', e);
+        }
+        
+        // Combine mock tasks and stored tasks
+        const allTasks = [...MOCK_TASKS, ...storedTasks];
+        
+        // Score and sort by relevance
+        const results = allTasks
+            .map(task => {
+                const lowerName = task.name.toLowerCase();
+                const lowerCategory = (task.category || '').toLowerCase();
+                
+                let score = 0;
+                
+                // Boost stored/recent tasks
+                if (task.category === 'Recent') {
+                    score += 5;
+                }
+                
+                // Exact match at start
+                if (lowerName.startsWith(lowerQuery)) {
+                    score += 100;
+                }
+                // Word starts with query
+                else if (lowerName.split(' ').some(word => word.startsWith(lowerQuery))) {
+                    score += 50;
+                }
+                // Contains query
+                else if (lowerName.includes(lowerQuery)) {
+                    score += 25;
+                }
+                // Category match
+                else if (lowerCategory.includes(lowerQuery)) {
+                    score += 10;
+                }
+                
+                return { ...task, score };
+            })
+            .filter(task => task.score > 0)
+            .sort((a, b) => b.score - a.score);
+        
+        // Deduplicate by name (prefer higher score)
+        const uniqueResults = [];
+        const seenNames = new Set();
+        for (const task of results) {
+            const lowerName = task.name.toLowerCase();
+            if (!seenNames.has(lowerName)) {
+                seenNames.add(lowerName);
+                uniqueResults.push(task);
+            }
+        }
+        
+        return uniqueResults.slice(0, 8); // Limit to 8 suggestions
     }
     
     /**
