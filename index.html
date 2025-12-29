@@ -64,6 +64,9 @@
                             <span>📥</span> Import
                         </button>
                         <input type="file" id="importFile" accept=".json" style="display: none;">
+                        <button id="bulkUploadBtn" class="btn btn-icon-text btn-primary" title="Bulk upload tasks to server">
+                            <span>☁️</span> Bulk Upload
+                        </button>
                     </div>
                 </div>
                 
@@ -143,6 +146,27 @@
                     <div class="edit-actions">
                         <button id="renameCancelBtn" class="btn btn-secondary">Cancel</button>
                         <button id="renameConfirmBtn" class="btn btn-primary">Rename</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Upload Modal -->
+            <div id="bulkUploadModal" class="modal-overlay hidden">
+                <div class="bulk-upload-modal glass-card">
+                    <div class="bulk-upload-header">
+                        <h2>☁️ Bulk Upload</h2>
+                        <button id="closeBulkUploadBtn" class="btn-close">✕</button>
+                    </div>
+                    <p class="bulk-upload-description">Select tasks to upload to the server:</p>
+                    <div id="bulkUploadList" class="bulk-upload-list">
+                        <!-- Task items will be rendered here -->
+                    </div>
+                    <div class="bulk-upload-footer">
+                        <span id="bulkUploadCount" class="bulk-upload-count">0 selected</span>
+                        <div class="bulk-upload-actions">
+                            <button id="bulkSelectAllBtn" class="btn btn-secondary">Select All</button>
+                            <button id="bulkUploadSubmitBtn" class="btn btn-primary" disabled>Upload Selected</button>
+                        </div>
                     </div>
                 </div>
             </div>

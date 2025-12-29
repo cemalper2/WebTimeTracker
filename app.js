@@ -8,7 +8,7 @@ import { TaskList } from './components/taskList.js';
 import { DetailPanel } from './components/detailPanel.js';
 import { storage } from './services/storage.js';
 import { syncService } from './services/sync.js';
-import { formatTime, formatDuration, generateId } from './utils/formatters.js';
+import { formatTime, formatDuration, formatDate, generateId } from './utils/formatters.js';
 
 class TimeTrackerApp {
     constructor() {
@@ -84,6 +84,15 @@ class TimeTrackerApp {
             helpBtn: document.getElementById('helpBtn'),
             helpModal: document.getElementById('helpModal'),
             closeHelpBtn: document.getElementById('closeHelpBtn'),
+            
+            // Bulk Upload Modal
+            bulkUploadBtn: document.getElementById('bulkUploadBtn'),
+            bulkUploadModal: document.getElementById('bulkUploadModal'),
+            bulkUploadList: document.getElementById('bulkUploadList'),
+            bulkUploadCount: document.getElementById('bulkUploadCount'),
+            bulkSelectAllBtn: document.getElementById('bulkSelectAllBtn'),
+            bulkUploadSubmitBtn: document.getElementById('bulkUploadSubmitBtn'),
+            closeBulkUploadBtn: document.getElementById('closeBulkUploadBtn'),
             
             // Re-use Rename Modal as generic Input Modal
             renameModalTitle: document.querySelector('#renameModal h3')
@@ -354,6 +363,15 @@ class TimeTrackerApp {
             if (e.target === this.els.helpModal) this.closeHelpModal();
         });
         
+        // Bulk Upload Modal
+        this.els.bulkUploadBtn.addEventListener('click', () => this.openBulkUploadModal());
+        this.els.closeBulkUploadBtn.addEventListener('click', () => this.closeBulkUploadModal());
+        this.els.bulkUploadModal.addEventListener('click', (e) => {
+            if (e.target === this.els.bulkUploadModal) this.closeBulkUploadModal();
+        });
+        this.els.bulkSelectAllBtn.addEventListener('click', () => this.handleBulkSelectAll());
+        this.els.bulkUploadSubmitBtn.addEventListener('click', () => this.handleBulkUpload());
+        
         // Date Navigation Buttons
         this.els.prevDayBtn.addEventListener('click', () => this.changeSessionDate(-1));
         this.els.nextDayBtn.addEventListener('click', () => this.changeSessionDate(1));
@@ -430,6 +448,201 @@ class TimeTrackerApp {
     
     closeHelpModal() {
         this.els.helpModal.classList.add('hidden');
+    }
+    
+    /**
+     * Open bulk upload modal - shows tasks that need uploading
+     */
+    async openBulkUploadModal() {
+        try {
+            // Get all tasks from IndexedDB
+            const allTasks = await storage.getAllTasks();
+            
+            // Get all tasks from server for comparison
+            let serverTasks = [];
+            try {
+                serverTasks = await syncService.getAllServerTasks();
+            } catch (e) {
+                console.warn('Could not fetch server tasks for sync comparison:', e);
+            }
+            
+            // Calculate syncStatus for each task
+            allTasks.forEach(task => {
+                const serverTask = serverTasks.find(st => st.id === task.id);
+                task.syncStatus = syncService.compareTasks(task, serverTask);
+            });
+            
+            // Filter for missing or inconsistent tasks
+            const uploadableTasks = allTasks.filter(task => 
+                task.syncStatus === 'missing' || task.syncStatus === 'inconsistent'
+            );
+            
+            // Store for later use
+            this.bulkUploadTasks = uploadableTasks;
+            this.bulkUploadServerTasks = serverTasks;
+            
+            // Render the list (pass server tasks for comparison display)
+            this.renderBulkUploadList(uploadableTasks, serverTasks);
+            
+            // Reset selection state
+            this.updateBulkUploadCount();
+            this.els.bulkSelectAllBtn.textContent = 'Select All';
+            
+            // Show modal
+            this.els.bulkUploadModal.classList.remove('hidden');
+        } catch (error) {
+            console.error('Failed to open bulk upload modal:', error);
+            this.showToast('Failed to load tasks', 'error');
+        }
+    }
+    
+    closeBulkUploadModal() {
+        this.els.bulkUploadModal.classList.add('hidden');
+        this.bulkUploadTasks = [];
+    }
+    
+    renderBulkUploadList(tasks, serverTasks = []) {
+        if (!tasks || tasks.length === 0) {
+            this.els.bulkUploadList.innerHTML = `
+                <div class="bulk-upload-empty">
+                    <span>✅</span>
+                    <p>All tasks are synced!</p>
+                </div>
+            `;
+            this.els.bulkUploadSubmitBtn.disabled = true;
+            return;
+        }
+        
+        const statusIcons = {
+            'missing': '❌',
+            'inconsistent': '⚠️'
+        };
+        
+        const statusLabels = {
+            'missing': 'Not uploaded',
+            'inconsistent': 'Needs update'
+        };
+        
+        // Helper to calculate total duration (parent + subtasks)
+        const calculateTotal = (task) => {
+            let total = task.duration || 0;
+            if (task.subtasks && task.subtasks.length > 0) {
+                for (const sub of task.subtasks) {
+                    total += calculateTotal(sub);
+                }
+            }
+            return total;
+        };
+        
+        this.els.bulkUploadList.innerHTML = tasks.map(task => {
+            const localTotal = calculateTotal(task);
+            const serverTask = serverTasks.find(st => st.id === task.id);
+            const serverTotal = serverTask ? calculateTotal(serverTask) : 0;
+            
+            // For inconsistent tasks, show both local and server values
+            let durationDisplay = formatDuration(localTotal);
+            if (task.syncStatus === 'inconsistent' && serverTask) {
+                durationDisplay = `${formatDuration(localTotal)} (server: ${formatDuration(serverTotal)})`;
+            }
+            
+            return `
+            <label class="bulk-upload-item" data-task-id="${task.id}">
+                <input type="checkbox" value="${task.id}">
+                <div class="bulk-upload-item-info">
+                    <div class="bulk-upload-item-name">${this.escapeHtml(task.name)}</div>
+                    <div class="bulk-upload-item-meta">
+                        <span>${formatDate(task.createdAt)}</span>
+                        <span>${durationDisplay}</span>
+                    </div>
+                </div>
+                <span class="bulk-upload-item-status" title="${statusLabels[task.syncStatus] || ''}">
+                    ${statusIcons[task.syncStatus] || ''}
+                </span>
+            </label>
+        `;
+        }).join('');
+        
+        // Add change listeners to update count
+        this.els.bulkUploadList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', () => this.updateBulkUploadCount());
+        });
+    }
+    
+    updateBulkUploadCount() {
+        const checkboxes = this.els.bulkUploadList.querySelectorAll('input[type="checkbox"]');
+        const checkedCount = this.els.bulkUploadList.querySelectorAll('input[type="checkbox"]:checked').length;
+        
+        this.els.bulkUploadCount.textContent = `${checkedCount} selected`;
+        this.els.bulkUploadSubmitBtn.disabled = checkedCount === 0;
+        
+        // Update select all button text
+        if (checkboxes.length > 0 && checkedCount === checkboxes.length) {
+            this.els.bulkSelectAllBtn.textContent = 'Deselect All';
+        } else {
+            this.els.bulkSelectAllBtn.textContent = 'Select All';
+        }
+    }
+    
+    handleBulkSelectAll() {
+        const checkboxes = this.els.bulkUploadList.querySelectorAll('input[type="checkbox"]');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        
+        checkboxes.forEach(cb => {
+            cb.checked = !allChecked;
+        });
+        
+        this.updateBulkUploadCount();
+    }
+    
+    async handleBulkUpload() {
+        const checkedBoxes = this.els.bulkUploadList.querySelectorAll('input[type="checkbox"]:checked');
+        const selectedIds = Array.from(checkedBoxes).map(cb => cb.value);
+        
+        if (selectedIds.length === 0) {
+            this.showToast('No tasks selected', 'error');
+            return;
+        }
+        
+        // Show confirmation
+        const confirmed = await this.showConfirm(
+            `Are you sure you want to upload ${selectedIds.length} task(s) to the server?`,
+            'Upload Tasks'
+        );
+        
+        if (!confirmed) return;
+        
+        // Close modal
+        this.closeBulkUploadModal();
+        
+        // Upload each task
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const taskId of selectedIds) {
+            try {
+                await this.syncTask(taskId, 'up');
+                successCount++;
+            } catch (e) {
+                console.error(`Failed to upload task ${taskId}:`, e);
+                failCount++;
+            }
+        }
+        
+        // Show result
+        if (failCount === 0) {
+            this.showToast(`✅ Uploaded ${successCount} task(s)`, 'success');
+        } else {
+            this.showToast(`Uploaded ${successCount}, failed ${failCount}`, 'error');
+        }
+        
+        // Reload tasks to update sync status
+        await this.loadTasks();
+    }
+    
+    escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
     
     updateTimerDisplay(seconds) {
@@ -1250,19 +1463,8 @@ class TimeTrackerApp {
                     this.showToast('Task fetched from server', 'success');
                 }
             } else {
-                const task = await storage.getTask(id);
+            const task = await storage.getTask(id);
                 if (!task) return;
-                
-                // Calculate total duration (parent + subtasks)
-                const calculateTotal = (t) => {
-                    let total = t.duration || 0;
-                    if (t.subtasks) {
-                        for (const sub of t.subtasks) {
-                            total += calculateTotal(sub);
-                        }
-                    }
-                    return total;
-                };
                 
                 // Sanitize task to remove any runtime helpers or circular references
                 const sanitize = (t) => {
@@ -1274,8 +1476,7 @@ class TimeTrackerApp {
                 };
                 
                 const cleanTask = sanitize(task);
-                // Set total duration for server (includes subtasks)
-                cleanTask.duration = calculateTotal(task);
+                // Note: postTask will calculate total duration (parent + subtasks)
                 
                 const serverResponse = await syncService.postTask(cleanTask);
                 

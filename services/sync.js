@@ -128,12 +128,35 @@ class SyncService {
     async postTask(task) {
         await this.ensureReady();
 
+        // Calculate total duration (parent + subtasks)
+        const calculateTotal = (t) => {
+            let total = t.duration || 0;
+            if (t.subtasks && t.subtasks.length > 0) {
+                for (const sub of t.subtasks) {
+                    total += calculateTotal(sub);
+                }
+            }
+            return total;
+        };
+        
+        // Create server payload WITHOUT subtasks - server only sees total duration
+        const serverPayload = {
+            id: task.id,
+            name: task.name,
+            duration: calculateTotal(task),
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt,
+            sessionDate: task.sessionDate,
+            events: task.events
+            // Explicitly NO subtasks property
+        };
+
         if (this.useHttpMode) {
             try {
                 const response = await fetch(`${this.serverUrl}/api/tasks`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(task)
+                    body: JSON.stringify(serverPayload)
                 });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return await response.json();
@@ -149,11 +172,11 @@ class SyncService {
         return new Promise((resolve, reject) => {
             const transaction = this.mockDb.transaction([MOCK_STORE_NAME], 'readwrite');
             const store = transaction.objectStore(MOCK_STORE_NAME);
-            const request = store.put(task);
+            const request = store.put(serverPayload);
 
             request.onsuccess = () => {
-                console.log('Mock Server: Received task', task.id);
-                resolve(task);
+                console.log('Mock Server: Received task', serverPayload.id);
+                resolve(serverPayload);
             };
 
             request.onerror = () => reject(request.error);
@@ -289,24 +312,21 @@ class SyncService {
             return total;
         };
 
-        // Local stores parent-only duration, server stores total
+        // Local stores parent-only duration + subtasks, server stores total
         // Compare totals for consistency
         const localTotal = calculateTotal(local);
         const isDurationMatch = localTotal === server.duration;
         const isNameMatch = local.name === server.name;
         
-        const localLogs = local.timerLogs || [];
-        const serverLogs = server.timerLogs || [];
-        const isLogsCountMatch = localLogs.length === serverLogs.length;
+        if (!isDurationMatch) {
+            console.log(`[Sync Debug] Duration mismatch: LocalTotal=${localTotal} Server=${server.duration}`);
+        }
+        if (!isNameMatch) {
+            console.log(`[Sync Debug] Name mismatch: Local=${local.name} Server=${server.name}`);
+        }
 
-        const isUpdatedMatch = (!local.updatedAt && !server.updatedAt) || (local.updatedAt === server.updatedAt);
-        
-        if (!isDurationMatch) console.log(`[Sync Debug] Duration mismatch: LocalTotal=${localTotal} Server=${server.duration}`);
-        if (!isNameMatch) console.log(`[Sync Debug] Name mismatch: Local=${local.name} Server=${server.name}`);
-        if (!isLogsCountMatch) console.log(`[Sync Debug] Logs count mismatch: Local=${localLogs.length} Server=${serverLogs.length}`);
-        if (!isUpdatedMatch) console.log(`[Sync Debug] UpdatedAt mismatch: Local=${local.updatedAt} Server=${server.updatedAt} (Diff: ${local.updatedAt - server.updatedAt}ms)`);
-
-        if (isDurationMatch && isNameMatch && isLogsCountMatch && isUpdatedMatch) {
+        // Only compare name and duration - timestamps and logs may differ
+        if (isDurationMatch && isNameMatch) {
             return 'consistent';
         }
         return 'inconsistent';
