@@ -551,7 +551,7 @@ class TimeTrackerApp {
                 <div class="bulk-upload-item-info">
                     <div class="bulk-upload-item-name">${this.escapeHtml(task.name)}</div>
                     <div class="bulk-upload-item-meta">
-                        <span>${formatDate(task.createdAt)}</span>
+                        <span>${task.sessionDate || 'No date'}</span>
                         <span>${durationDisplay}</span>
                     </div>
                 </div>
