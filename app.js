@@ -653,12 +653,8 @@ class TimeTrackerApp {
     }
     
     async handleTimerStateChange(state) {
-        // Log timer events with timestamps
-        this.timerLogs.push({
-            event: state === 'running' ? 'start' : 'stop',
-            timestamp: new Date().toISOString(),
-            elapsedSeconds: this.timer.getTime()
-        });
+        // NOTE: Event logging is handled by startTaskTimer/stopTaskTimer
+        // This handler only manages tab indicator and auto-save
         
         // Update tab icon and title based on timer state
         this.updateTabIndicator(state);
@@ -791,8 +787,17 @@ class TimeTrackerApp {
                 console.warn('Could not fetch sync status:', e);
             }
             
+            // Include current session's in-memory logs if this is the active running task
+            let displayTask = task;
+            if (this.activeTaskId === id && this.timerLogs.length > 0) {
+                displayTask = {
+                    ...task,
+                    timerLogs: [...(task.timerLogs || []), ...this.timerLogs]
+                };
+            }
+            
             // Open the detail panel
-            this.detailPanel.open(task, syncStatus);
+            this.detailPanel.open(displayTask, syncStatus);
         } catch (error) {
             console.error('Error opening detail panel:', error);
             this.showToast('Error loading task details', 'error');
