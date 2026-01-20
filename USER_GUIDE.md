@@ -1,6 +1,6 @@
 # Time Tracker User Guide
 
-A comprehensive guide to using the Time Tracker application.
+A simple, elegant time tracking application that runs in your browser.
 
 ## Table of Contents
 
@@ -9,9 +9,10 @@ A comprehensive guide to using the Time Tracker application.
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Task History](#task-history)
 - [Editing Tasks](#editing-tasks)
-- [Data Sync](#data-sync)
+- [Task Details](#task-details)
 - [Import & Export](#import--export)
 - [Settings](#settings)
+- [Tips & Tricks](#tips--tricks)
 
 ---
 
@@ -21,7 +22,7 @@ A comprehensive guide to using the Time Tracker application.
 2. Enter a task name in the "What are you working on?" field
 3. Click **Start** or press `Space` to begin timing
 
-Your task will automatically be saved to history when you start the timer.
+Your task will automatically be saved when you start the timer.
 
 ---
 
@@ -40,12 +41,12 @@ Your task will automatically be saved to history when you start the timer.
 
 ### Creating a New Task
 
-- Click **➕ New Task** to save current work and start fresh
+- Click **➕ Add Task** to start a fresh task
 - Or simply change the task name and start the timer
 
 ### Resuming Previous Tasks
 
-Click any task in the history list to resume working on it. The timer will continue from where you left off.
+Click the **▶** play button on any task in history to resume it.
 
 ---
 
@@ -57,6 +58,7 @@ Click any task in the history list to resume working on it. The timer will conti
 | `←` | Previous day |
 | `→` | Next day |
 | `Escape` | Close modals |
+| `Enter` | Confirm in modals |
 
 ---
 
@@ -67,17 +69,16 @@ The history section shows all tasks for the selected date.
 ### Task Status Icons
 
 | Icon | Meaning |
-|------|---------|
+|------|---------| 
 | ✅ | Synced with server |
 | ❌ | Not synced (local only) |
-| ⚠️ | Out of sync (data differs from server) |
+| ⚠️ | Out of sync (data differs) |
 
 ### Task Actions
 
-Each task has actions available:
-
 - **▶️** Resume - Continue timing this task
-- **ℹ️** Details - View full event history
+- **➕** Add Subtask - Create a subtask
+- **ℹ️** Details - View event history
 - **📝** Rename - Change task name
 - **✏️** Edit Time - Adjust duration
 - **🗑️** Delete - Remove task
@@ -86,7 +87,6 @@ Each task has actions available:
 
 - **Double-click task name** → Opens rename modal
 - **Double-click duration** → Opens time edit modal
-- Single clicks on name/time do NOT resume the task
 
 ---
 
@@ -94,51 +94,26 @@ Each task has actions available:
 
 ### Edit Time Modal
 
-Click the timer display or double-click a task's duration to edit time.
+Click **✏️** or double-click a task's duration to edit time.
 
 **Supported formats:**
 - `HH:MM:SS` (e.g., `01:30:00`)
 - `MM:SS` (e.g., `45:30`)
 - Just seconds (e.g., `90` becomes `01:30`)
 
-The parser auto-normalizes overflow values.
-
 ### Rename Modal
 
-Click 📝 or double-click a task name to rename it.
+Click **📝** or double-click a task name to rename it.
 
 ---
 
-## Task Details Panel
+## Task Details
 
 Click **ℹ️** on any task to open the details panel showing:
 
-- Task name
-- Total duration
-- Session date
-- Sync status
-- **Event Timeline** - Complete history of start/stop events with timestamps
-
----
-
-## Data Sync
-
-The app includes a mock sync service for demonstration:
-
-### Sync Status
-
-- **✅ Synced** - Local matches server
-- **❌ Missing** - Local only, click ☁️⬆️ to upload
-- **⚠️ Inconsistent** - Data differs, choose:
-  - ☁️⬆️ Push local → server
-  - ☁️⬇️ Pull server → local
-
-### Seeding Test Data
-
-Open browser console and run:
-```javascript
-import('./services/sync.js').then(m => m.syncService.seedServer())
-```
+- Task name and total duration
+- Session date and sync status
+- **Event Timeline** - History of start/stop events with timestamps
 
 ---
 
@@ -146,15 +121,19 @@ import('./services/sync.js').then(m => m.syncService.seedServer())
 
 ### Export Current Day
 
-Click **📤 Export Current Day** to download today's tasks as JSON.
+Click **📤 Export** to download the current day's tasks as JSON.
 
-### Export All
+### Export All (Backup)
 
-Click **📦 Export All** to backup your complete task history.
+Click **📦 Backup** to export your complete task history.
 
 ### Import
 
 Click **📥 Import** to restore tasks from a JSON backup file.
+
+### Bulk Upload
+
+Click **☁️ Bulk Upload** to upload multiple unsynced tasks at once.
 
 ---
 
@@ -162,11 +141,11 @@ Click **📥 Import** to restore tasks from a JSON backup file.
 
 ### Theme Toggle
 
-Click the 🌙/☀️ button in the header to switch between dark and light themes.
+Click the 🌙/☀️ button to switch between dark and light themes.
 
 ### Date Navigation
 
-- Use **◀ ▶** buttons or `←` `→` keys to navigate dates
+- Use **◀ ▶** buttons or arrow keys to navigate dates
 - Click the date label to open a date picker
 - Click **📅 Switch to Today** when viewing past dates
 
@@ -174,22 +153,19 @@ Click the 🌙/☀️ button in the header to switch between dark and light them
 
 ## Data Storage
 
-All data is stored locally in your browser using IndexedDB:
+All data is stored locally in your browser using IndexedDB.
 
-- **TimeTrackerDB** - Your task data
-- **TimeTrackerMockServer** - Simulated server for sync testing
-
-> ⚠️ **Warning**: Clearing browser data will delete your tasks. Use Export to backup!
+> ⚠️ **Important**: Clearing browser data will delete your tasks. Use Backup regularly!
 
 ---
 
 ## Tips & Tricks
 
-1. **Quick task switching**: Click any task in history to resume it instantly
-2. **Batch editing**: Use double-click for quick edits without extra button clicks
-3. **Time overflow**: Enter `90:00` (90 minutes) and it auto-converts to `01:30:00`
-4. **Keyboard workflow**: Use `Space` to toggle timer, arrows to navigate dates
-5. **Backup regularly**: Export your data periodically as JSON backup
+1. **Quick task switching** - Click ▶ on any task to resume instantly
+2. **Time overflow** - Enter `90:00` and it auto-converts to `01:30:00`
+3. **Subtasks** - Organize related work under parent tasks
+4. **Drag & drop** - Drag a task onto another to make it a subtask
+5. **Backup regularly** - Export your data periodically
 
 ---
 
@@ -198,10 +174,6 @@ All data is stored locally in your browser using IndexedDB:
 ### Timer not saving?
 - Ensure you have a task name entered
 - Check that browser storage is not full
-
-### Data not syncing?
-- The sync service is a mock/demo - data stays in browser
-- Use Import/Export for actual backups
 
 ### UI not updating?
 - Try refreshing the page

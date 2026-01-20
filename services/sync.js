@@ -24,7 +24,15 @@ class SyncService {
             const response = await fetch('./config.json');
             if (response.ok) {
                 const config = await response.json();
-                if (config.syncServerUrl && config.syncEnabled !== false) {
+                
+                // Check if sync is explicitly disabled
+                if (config.syncEnabled === false) {
+                    this.syncDisabled = true;
+                    console.log('[Sync] Sync is disabled in config');
+                    return;
+                }
+                
+                if (config.syncServerUrl) {
                     this.serverUrl = config.syncServerUrl;
                     this.useHttpMode = true;
                     console.log('[Sync] Using HTTP mode:', this.serverUrl);
@@ -33,21 +41,25 @@ class SyncService {
                     try {
                         const health = await fetch(`${this.serverUrl}/health`);
                         if (!health.ok) {
-                            console.warn('[Sync] Server not reachable, falling back to mock');
-                            this.useHttpMode = false;
+                            console.error('[Sync] Server not reachable');
+                            this.syncDisabled = true;
+                            return;
                         }
                     } catch (e) {
-                        console.warn('[Sync] Server connection failed, falling back to mock:', e.message);
-                        this.useHttpMode = false;
+                        console.error('[Sync] Server connection failed:', e.message);
+                        this.syncDisabled = true;
+                        return;
                     }
                 }
             }
         } catch (e) {
-            console.log('[Sync] No config.json found, using mock mode');
+            console.log('[Sync] No config.json found, sync disabled');
+            this.syncDisabled = true;
+            return;
         }
 
-        // Initialize mock DB if not using HTTP
-        if (!this.useHttpMode) {
+        // Initialize mock DB only if sync is enabled and not using HTTP
+        if (!this.useHttpMode && !this.syncDisabled) {
             await this.initMockDb();
         }
     }
@@ -78,6 +90,9 @@ class SyncService {
 
     async ensureReady() {
         await this.readyPromise;
+        if (this.syncDisabled) {
+            throw new Error('Sync is disabled');
+        }
     }
 
     /**

@@ -8,21 +8,23 @@ services:
       - "8081:80"
     restart: unless-stopped
     container_name: time-tracker-web
-    depends_on:
-      - api
+    # Note: Remove depends_on when api is disabled
+    # depends_on:
+    #   - api
 
-  # Python sync API server
-  api:
-    build: ./server
-    ports:
-      - "5000:5000"
-    restart: unless-stopped
-    container_name: time-tracker-api
-    environment:
-      - FLASK_ENV=development
-      - DATABASE_PATH=/data/tasks.db
-    volumes:
-      - api-data:/data
+  # Python sync API server (disabled by default)
+  # Uncomment below to enable backend sync server
+  # api:
+  #   build: ./server
+  #   ports:
+  #     - "5000:5000"
+  #   restart: unless-stopped
+  #   container_name: time-tracker-api
+  #   environment:
+  #     - FLASK_ENV=development
+  #     - DATABASE_PATH=/data/tasks.db
+  #   volumes:
+  #     - api-data:/data
 
 volumes:
   api-data:
