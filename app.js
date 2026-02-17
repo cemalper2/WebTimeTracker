@@ -95,7 +95,8 @@ class TimeTrackerApp {
             closeBulkUploadBtn: document.getElementById('closeBulkUploadBtn'),
             
             // Re-use Rename Modal as generic Input Modal
-            renameModalTitle: document.querySelector('#renameModal h3')
+            renameModalTitle: document.getElementById('renameModalTitle'),
+            renameSuggestions: document.getElementById('renameSuggestions')
         };
     }
     
@@ -1161,7 +1162,7 @@ class TimeTrackerApp {
          } catch (e) { return this.timerLogs; }
     }
     
-    inputSubtask(parentId) {
+    async inputSubtask(parentId) {
         // Reuse rename modal for input
         this.renamingTaskId = null; // Ensure not renaming mode
         this.parentTaskId = parentId;
@@ -1171,6 +1172,56 @@ class TimeTrackerApp {
         this.els.renameModalTitle.textContent = "Add Subtask";
         this.els.renameInput.value = "";
         this.els.renameInput.placeholder = "Subtask name";
+        
+        // Build subtask suggestions from previous entries for this parent task
+        const parentContext = await this.findTaskContext(parentId);
+        const parentName = parentContext ? parentContext.task.name : null;
+        let subtaskSuggestions = [];
+        if (parentName) {
+            subtaskSuggestions = await this.getSubtaskSuggestions(parentName);
+        }
+        
+        let selectedSuggestionIndex = -1;
+        
+        const showSuggestions = (query) => {
+            const sugEl = this.els.renameSuggestions;
+            if (!query || query.length < 1 || subtaskSuggestions.length === 0) {
+                sugEl.classList.add('hidden');
+                sugEl.innerHTML = '';
+                selectedSuggestionIndex = -1;
+                return;
+            }
+            const q = query.toLowerCase();
+            const matches = subtaskSuggestions.filter(s => s.toLowerCase().includes(q));
+            if (matches.length === 0) {
+                sugEl.classList.add('hidden');
+                sugEl.innerHTML = '';
+                selectedSuggestionIndex = -1;
+                return;
+            }
+            selectedSuggestionIndex = -1;
+            sugEl.innerHTML = matches.map((name, i) => 
+                `<div class="suggestion-item" data-index="${i}"><span class="icon">📋</span><span>${this.escapeHtml(name)}</span></div>`
+            ).join('');
+            sugEl.querySelectorAll('.suggestion-item').forEach((item, i) => {
+                item.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    this.els.renameInput.value = matches[i];
+                    sugEl.classList.add('hidden');
+                });
+            });
+            sugEl.classList.remove('hidden');
+        };
+        
+        const hideSuggestions = () => {
+            this.els.renameSuggestions.classList.add('hidden');
+            this.els.renameSuggestions.innerHTML = '';
+            selectedSuggestionIndex = -1;
+        };
+        
+        const handleInput = () => {
+            showSuggestions(this.els.renameInput.value.trim());
+        };
         
         this.els.renameModal.classList.remove('hidden');
         this.els.renameInput.focus();
@@ -1190,6 +1241,26 @@ class TimeTrackerApp {
         };
         
         const handleKeydown = (e) => {
+             const sugEl = this.els.renameSuggestions;
+             const items = sugEl.querySelectorAll('.suggestion-item');
+             if (items.length > 0 && !sugEl.classList.contains('hidden')) {
+                 if (e.key === 'ArrowDown') {
+                     e.preventDefault();
+                     selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, items.length - 1);
+                     items.forEach((item, i) => item.classList.toggle('active', i === selectedSuggestionIndex));
+                     return;
+                 } else if (e.key === 'ArrowUp') {
+                     e.preventDefault();
+                     selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+                     items.forEach((item, i) => item.classList.toggle('active', i === selectedSuggestionIndex));
+                     return;
+                 } else if (e.key === 'Enter' && selectedSuggestionIndex >= 0) {
+                     e.preventDefault();
+                     this.els.renameInput.value = items[selectedSuggestionIndex].textContent.trim();
+                     hideSuggestions();
+                     return;
+                 }
+             }
              if (e.key === 'Enter') handleConfirm();
              if (e.key === 'Escape') handleCancel();
         };
@@ -1198,20 +1269,43 @@ class TimeTrackerApp {
              // Restore title
              this.els.renameModalTitle.textContent = originalTitle;
              this.els.renameInput.placeholder = "Task name";
+             hideSuggestions();
              
              this.els.renameConfirmBtn.removeEventListener('click', handleConfirm);
              this.els.renameCancelBtn.removeEventListener('click', handleCancel);
              this.els.renameInput.removeEventListener('keydown', handleKeydown);
-             
-             // Re-bind original rename listeners done in openRenameModal? 
-             // No, openRenameModal binds fresh listeners every time.
-             // We just need to make sure we don't leave zombie listeners or remove the wrong ones.
-             // But my openRename logic binds valid listeners. 
+             this.els.renameInput.removeEventListener('input', handleInput);
         };
         
         this.els.renameConfirmBtn.addEventListener('click', handleConfirm);
         this.els.renameCancelBtn.addEventListener('click', handleCancel);
         this.els.renameInput.addEventListener('keydown', handleKeydown);
+        this.els.renameInput.addEventListener('input', handleInput);
+    }
+    
+    /**
+     * Get unique subtask names previously used under tasks with the given parent name
+     * @param {string} parentName - The parent task name
+     * @returns {Promise<string[]>} Array of unique subtask names
+     */
+    async getSubtaskSuggestions(parentName) {
+        try {
+            const allTasks = await storage.getAllTasks();
+            const subtaskNames = new Set();
+            
+            for (const task of allTasks) {
+                if (task.name === parentName && task.subtasks && task.subtasks.length > 0) {
+                    for (const sub of task.subtasks) {
+                        subtaskNames.add(sub.name);
+                    }
+                }
+            }
+            
+            return [...subtaskNames].sort();
+        } catch (e) {
+            console.warn('Failed to get subtask suggestions:', e);
+            return [];
+        }
     }
     
     async addSubtask(parentId, name) {

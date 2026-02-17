@@ -515,6 +515,11 @@ body {
     animation: scaleIn 0.2s ease-out;
 }
 
+.rename-input-wrapper {
+    position: relative;
+    text-align: left;
+}
+
 @keyframes scaleIn {
     from { transform: scale(0.9); opacity: 0; }
     to { transform: scale(1); opacity: 1; }

@@ -141,9 +141,12 @@
             <!-- Rename Modal -->
             <div id="renameModal" class="confirm-modal hidden">
                 <div class="confirm-content glass-card">
-                    <h3 style="margin-bottom: 12px; font-size: 1.2rem;">Rename Task</h3>
-                    <input type="text" id="renameInput" class="task-input" style="width: 100%; margin-bottom: 24px;" placeholder="Task name">
-                    <div class="edit-actions">
+                    <h3 id="renameModalTitle" style="margin-bottom: 12px; font-size: 1.2rem;">Rename Task</h3>
+                    <div class="rename-input-wrapper">
+                        <input type="text" id="renameInput" class="task-input" style="width: 100%;" placeholder="Task name">
+                        <div id="renameSuggestions" class="suggestions-dropdown hidden"></div>
+                    </div>
+                    <div class="edit-actions" style="margin-top: 16px;">
                         <button id="renameCancelBtn" class="btn btn-secondary">Cancel</button>
                         <button id="renameConfirmBtn" class="btn btn-primary">Rename</button>
                     </div>
